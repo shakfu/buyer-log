@@ -1,0 +1,27 @@
+[project]
+name = "buyer"
+version = "0.1.0"
+description = "A purchasing support tool."
+readme = "README.md"
+authors = [
+    { name = "shakfu", email = "sa@example.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "sqlalchemy>=2.0.40",
+]
+
+[project.scripts]
+buyer = "buyer:main"
+
+[build-system]
+requires = ["uv_build>=0.7.3,<0.8"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "eralchemy>=1.5.0",
+    "factory-boy>=3.3.3",
+    "litecli>=1.15.0",
+    "pytest>=8.3.5",
+]
