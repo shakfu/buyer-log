@@ -5,12 +5,27 @@ Intended is a commandline tool to capture quotes, purchases of products from onl
 ## Demo Session
 
 ```sh
-% buyer add brand apple
-% buyer add product apple iphone-14
-% buyer add vendor amazon.com buyer.com
-% buyer add quote amazon.com iphone-14 600 USD
-% buyer add quote buyer.com iphone-14 600 USD
+% buyer add --brand apple
+% buyer add --brand apple --product apple
+% buyer add --vendor amazon.com
+% buyer add --vendor amazon.com --product iphone-14 --quote 600 USD
+% buyer add --vendor buyer.com --product iphone-14 --quote 650 USD
 ```
+
+
+## target features
+
+- organization and persistence of all buying data
+- repl for buying support
+- webscraping of vendor's prices
+- inventory of purchased items
+- report generation (xlsx, html, pdf..)
+    - quote comparison
+    - shipping costs attribution based on destination (from, to)
+    - discount codes
+    - sales patterns recommendation
+    - budget mgmt
+
 
 ## Roadmap
 
@@ -71,3 +86,10 @@ Intended is a commandline tool to capture quotes, purchases of products from onl
 ## Current Model
 
 ![entity-relationship-diagram](doc/er_model.svg)
+
+
+## TODO
+
+- checkout [redbird](https://red-bird.readthedocs.io/en/stable/index.html)
+
+

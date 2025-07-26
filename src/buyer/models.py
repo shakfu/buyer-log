@@ -1,21 +1,5 @@
 #!/usr/bin/env python3
-"""model.py: a prototype for an online purchasing support tool
-
-## target features
-
-- organization and persistence of all buying data
-- repl for buying support
-- webscraping of vendor's prices
-- inventory of purchased items
-- report generation (xlsx, html, pdf..)
-    - quote comparison
-    - shipping costs attribution based on destination (from, to)
-    - discount codes
-    - sales patterns recommendation
-    - budget mgmt
-
-
-"""
+"""model.py: models a purchasing support tool"""
 from contextlib import contextmanager
 from pathlib import Path
 from typing import List
