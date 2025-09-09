@@ -12,6 +12,9 @@ wheels/
 .venv
 venv
 
+# uv
+uv.lock
+
 # claude
 .claude
 CLAUDE.md

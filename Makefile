@@ -1,6 +1,10 @@
-.PHONY: all test coverage diagram clean
+.PHONY: all web test coverage diagram clean
 
 all: test
+
+
+web: 
+	@uv run python -m buyer.web
 
 test:
 	@echo "running tests"
