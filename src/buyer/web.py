@@ -44,10 +44,13 @@ HTML_TEMPLATE = """
         button:hover { background: #0056b3; }
         .section { margin: 30px 0; padding: 20px; border: 1px solid #ddd; border-radius: 5px; }
         .entity-list { margin-top: 20px; }
-        .entity-item { padding: 10px; margin: 5px 0; background: #f8f9fa; border-radius: 3px; }
-        .error { color: red; margin: 10px 0; }
-        .success { color: green; margin: 10px 0; }
+        .entity-item { padding: 10px; margin: 5px 0; background: #f8f9fa; border-radius: 3px; display: flex; justify-content: space-between; align-items: center; }
+        .error { color: red; margin: 10px 0; padding: 10px; background: #ffe6e6; border-radius: 3px; }
+        .success { color: green; margin: 10px 0; padding: 10px; background: #e6ffe6; border-radius: 3px; }
+        .delete-btn { padding: 5px 10px; background: #dc3545; color: white; border: none; cursor: pointer; border-radius: 3px; font-size: 12px; }
+        .delete-btn:hover { background: #c82333; }
     </style>
+    <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.7/dist/htmx.min.js" integrity="sha384-ZBXiYtYQ6hJ2Y0ZNoYuI+Nq5MqWBr+chMrS/RkXpNzQCApHEhOt2aY8EJgqwHLkJ" crossorigin="anonymous"></script>
 </head>
 <body>
     <div class="container">
@@ -55,18 +58,23 @@ HTML_TEMPLATE = """
         
         <div class="section">
             <h2>Add Brand</h2>
-            <form method="post" action="/brands">
+            <form hx-post="/brands" hx-target="#brand-response" hx-swap="innerHTML" hx-on::after-request="this.reset()">
                 <div class="form-group">
                     <label>Brand Name:</label>
                     <input type="text" name="name" required>
                 </div>
                 <button type="submit">Add Brand</button>
             </form>
+            <div id="brand-response"></div>
+            <div class="entity-list">
+                <h3>Current Brands</h3>
+                <div id="brands-list" hx-get="/brands/fragment" hx-trigger="load"></div>
+            </div>
         </div>
         
         <div class="section">
             <h2>Add Product</h2>
-            <form method="post" action="/products">
+            <form hx-post="/products" hx-target="#product-response" hx-swap="innerHTML" hx-on::after-request="this.reset()">
                 <div class="form-group">
                     <label>Brand Name:</label>
                     <input type="text" name="brand_name" required>
@@ -77,11 +85,16 @@ HTML_TEMPLATE = """
                 </div>
                 <button type="submit">Add Product</button>
             </form>
+            <div id="product-response"></div>
+            <div class="entity-list">
+                <h3>Current Products</h3>
+                <div id="products-list" hx-get="/products/fragment" hx-trigger="load"></div>
+            </div>
         </div>
         
         <div class="section">
             <h2>Add Vendor</h2>
-            <form method="post" action="/vendors">
+            <form hx-post="/vendors" hx-target="#vendor-response" hx-swap="innerHTML" hx-on::after-request="this.reset()">
                 <div class="form-group">
                     <label>Vendor Name:</label>
                     <input type="text" name="name" required>
@@ -100,11 +113,16 @@ HTML_TEMPLATE = """
                 </div>
                 <button type="submit">Add Vendor</button>
             </form>
+            <div id="vendor-response"></div>
+            <div class="entity-list">
+                <h3>Current Vendors</h3>
+                <div id="vendors-list" hx-get="/vendors/fragment" hx-trigger="load"></div>
+            </div>
         </div>
         
         <div class="section">
             <h2>Add Quote</h2>
-            <form method="post" action="/quotes">
+            <form hx-post="/quotes" hx-target="#quote-response" hx-swap="innerHTML" hx-on::after-request="this.reset()">
                 <div class="form-group">
                     <label>Vendor Name:</label>
                     <input type="text" name="vendor_name" required>
@@ -119,16 +137,11 @@ HTML_TEMPLATE = """
                 </div>
                 <button type="submit">Add Quote</button>
             </form>
-        </div>
-        
-        <div class="section">
-            <h2>View Data</h2>
-            <p>
-                <a href="/brands/list">View Brands</a> | 
-                <a href="/products/list">View Products</a> | 
-                <a href="/vendors/list">View Vendors</a> | 
-                <a href="/quotes/list">View Quotes</a>
-            </p>
+            <div id="quote-response"></div>
+            <div class="entity-list">
+                <h3>Current Quotes</h3>
+                <div id="quotes-list" hx-get="/quotes/fragment" hx-trigger="load"></div>
+            </div>
         </div>
     </div>
 </body>
@@ -167,7 +180,7 @@ async def home():
     return HTML_TEMPLATE
 
 
-@app.post("/brands")
+@app.post("/brands", response_class=HTMLResponse)
 async def add_brand(
     name: str = Form(...),
     session = Depends(get_session)
@@ -175,15 +188,30 @@ async def add_brand(
     """Add a new brand"""
     existing = Brand.by_name(session, name)
     if existing:
-        raise HTTPException(status_code=400, detail=f"Brand '{name}' already exists")
-    
+        return f'<div class="error">Brand \'{name}\' already exists</div>'
+
     brand = Brand(name=name)
     session.add(brand)
     session.commit()
-    return {"message": f"Added brand: {name}", "id": brand.id}
+
+    # Return success message and updated brand list
+    brands = session.execute(select(Brand)).scalars().all()
+    items_html = ""
+    for b in brands:
+        products = [p.name for p in b.products]
+        products_str = ', '.join(products) if products else 'none'
+        items_html += f'''<div class="entity-item">
+            Brand: {b.name} (products: {products_str})
+            <button class="delete-btn" hx-delete="/brands/{b.id}" hx-target="#brand-response" hx-confirm="Delete brand '{b.name}'?">Delete</button>
+        </div>'''
+
+    return f'''
+        <div class="success">Added brand: {name}</div>
+        <div id="brands-list" hx-swap-oob="true">{items_html}</div>
+    '''
 
 
-@app.post("/products")
+@app.post("/products", response_class=HTMLResponse)
 async def add_product(
     name: str = Form(...),
     brand_name: str = Form(...),
@@ -195,18 +223,31 @@ async def add_product(
         brand = Brand(name=brand_name)
         session.add(brand)
         session.flush()
-    
+
     existing = Product.by_name(session, name)
     if existing:
-        raise HTTPException(status_code=400, detail=f"Product '{name}' already exists")
-    
+        return f'<div class="error">Product \'{name}\' already exists</div>'
+
     product = Product(name=name, brand=brand)
     session.add(product)
     session.commit()
-    return {"message": f"Added product: {name} under brand: {brand_name}", "id": product.id}
+
+    # Return success message and updated product list
+    products = session.execute(select(Product)).scalars().all()
+    items_html = ""
+    for p in products:
+        items_html += f'''<div class="entity-item">
+            Product: {p.name} (brand: {p.brand.name})
+            <button class="delete-btn" hx-delete="/products/{p.id}" hx-target="#product-response" hx-confirm="Delete product '{p.name}'?">Delete</button>
+        </div>'''
+
+    return f'''
+        <div class="success">Added product: {name} under brand: {brand_name}</div>
+        <div id="products-list" hx-swap-oob="true">{items_html}</div>
+    '''
 
 
-@app.post("/vendors")
+@app.post("/vendors", response_class=HTMLResponse)
 async def add_vendor(
     name: str = Form(...),
     currency: str = Form("USD"),
@@ -217,8 +258,8 @@ async def add_vendor(
     """Add a new vendor"""
     existing = Vendor.by_name(session, name)
     if existing:
-        raise HTTPException(status_code=400, detail=f"Vendor '{name}' already exists")
-    
+        return f'<div class="error">Vendor \'{name}\' already exists</div>'
+
     vendor = Vendor(
         name=name,
         currency=currency,
@@ -227,10 +268,24 @@ async def add_vendor(
     )
     session.add(vendor)
     session.commit()
-    return {"message": f"Added vendor: {name} (currency: {currency})", "id": vendor.id}
+
+    # Return success message and updated vendor list
+    vendors = session.execute(select(Vendor)).scalars().all()
+    items_html = ""
+    for v in vendors:
+        quote_count = len(v.quotes)
+        items_html += f'''<div class="entity-item">
+            Vendor: {v.name} (currency: {v.currency}, quotes: {quote_count})
+            <button class="delete-btn" hx-delete="/vendors/{v.id}" hx-target="#vendor-response" hx-confirm="Delete vendor '{v.name}'?">Delete</button>
+        </div>'''
+
+    return f'''
+        <div class="success">Added vendor: {name} (currency: {currency})</div>
+        <div id="vendors-list" hx-swap-oob="true">{items_html}</div>
+    '''
 
 
-@app.post("/quotes")
+@app.post("/quotes", response_class=HTMLResponse)
 async def add_quote(
     vendor_name: str = Form(...),
     product_name: str = Form(...),
@@ -240,12 +295,12 @@ async def add_quote(
     """Add a quote from a vendor for a product"""
     vendor = Vendor.by_name(session, vendor_name)
     if not vendor:
-        raise HTTPException(status_code=404, detail=f"Vendor '{vendor_name}' not found")
-    
+        return f'<div class="error">Vendor \'{vendor_name}\' not found</div>'
+
     product = Product.by_name(session, product_name)
     if not product:
-        raise HTTPException(status_code=404, detail=f"Product '{product_name}' not found")
-    
+        return f'<div class="error">Product \'{product_name}\' not found</div>'
+
     quote = Quote(
         vendor=vendor,
         product=product,
@@ -254,7 +309,63 @@ async def add_quote(
     )
     session.add(quote)
     session.commit()
-    return {"message": f"Added quote: {vendor_name} -> {product_name} = {value} {vendor.currency}", "id": quote.id}
+
+    # Return success message and updated quote list
+    quotes = session.execute(select(Quote)).scalars().all()
+    items_html = ""
+    for q in quotes:
+        items_html += f'''<div class="entity-item">
+            Quote: {q.vendor.name} → {q.product.brand.name} {q.product.name} = {q.value} {q.currency}
+            <button class="delete-btn" hx-delete="/quotes/{q.id}" hx-target="#quote-response" hx-confirm="Delete quote?">Delete</button>
+        </div>'''
+
+    return f'''
+        <div class="success">Added quote: {vendor_name} → {product_name} = {value} {vendor.currency}</div>
+        <div id="quotes-list" hx-swap-oob="true">{items_html}</div>
+    '''
+
+
+@app.delete("/brands/{brand_id}", response_class=HTMLResponse)
+async def delete_brand(brand_id: int, session = Depends(get_session)):
+    """Delete a brand"""
+    brand = session.get(Brand, brand_id)
+    if not brand:
+        return '<div class="error">Brand not found</div>'
+
+    name = brand.name
+    session.delete(brand)
+    session.commit()
+
+    # Return updated list and success message
+    brands = session.execute(select(Brand)).scalars().all()
+    items_html = ""
+    for b in brands:
+        products = [p.name for p in b.products]
+        products_str = ', '.join(products) if products else 'none'
+        items_html += f'''<div class="entity-item">
+            Brand: {b.name} (products: {products_str})
+            <button class="delete-btn" hx-delete="/brands/{b.id}" hx-target="#brand-response" hx-confirm="Delete brand '{b.name}'?">Delete</button>
+        </div>'''
+
+    return f'''
+        <div class="success">Deleted brand: {name}</div>
+        <div id="brands-list" hx-swap-oob="true">{items_html}</div>
+    '''
+
+
+@app.get("/brands/fragment", response_class=HTMLResponse)
+async def get_brands_fragment(session = Depends(get_session)):
+    """Get brands list fragment"""
+    brands = session.execute(select(Brand)).scalars().all()
+    items_html = ""
+    for b in brands:
+        products = [p.name for p in b.products]
+        products_str = ', '.join(products) if products else 'none'
+        items_html += f'''<div class="entity-item">
+            Brand: {b.name} (products: {products_str})
+            <button class="delete-btn" hx-delete="/brands/{b.id}" hx-target="#brand-response" hx-confirm="Delete brand '{b.name}'?">Delete</button>
+        </div>'''
+    return items_html
 
 
 @app.get("/brands")
@@ -277,6 +388,45 @@ async def list_brands_html(session = Depends(get_session)):
     return LIST_TEMPLATE.format(title="Brands", content=content)
 
 
+@app.delete("/products/{product_id}", response_class=HTMLResponse)
+async def delete_product(product_id: int, session = Depends(get_session)):
+    """Delete a product"""
+    product = session.get(Product, product_id)
+    if not product:
+        return '<div class="error">Product not found</div>'
+
+    name = product.name
+    session.delete(product)
+    session.commit()
+
+    # Return updated list and success message
+    products = session.execute(select(Product)).scalars().all()
+    items_html = ""
+    for p in products:
+        items_html += f'''<div class="entity-item">
+            Product: {p.name} (brand: {p.brand.name})
+            <button class="delete-btn" hx-delete="/products/{p.id}" hx-target="#product-response" hx-confirm="Delete product '{p.name}'?">Delete</button>
+        </div>'''
+
+    return f'''
+        <div class="success">Deleted product: {name}</div>
+        <div id="products-list" hx-swap-oob="true">{items_html}</div>
+    '''
+
+
+@app.get("/products/fragment", response_class=HTMLResponse)
+async def get_products_fragment(session = Depends(get_session)):
+    """Get products list fragment"""
+    products = session.execute(select(Product)).scalars().all()
+    items_html = ""
+    for p in products:
+        items_html += f'''<div class="entity-item">
+            Product: {p.name} (brand: {p.brand.name})
+            <button class="delete-btn" hx-delete="/products/{p.id}" hx-target="#product-response" hx-confirm="Delete product '{p.name}'?">Delete</button>
+        </div>'''
+    return items_html
+
+
 @app.get("/products")
 async def get_products(session = Depends(get_session)):
     """Get all products"""
@@ -293,6 +443,47 @@ async def list_products_html(session = Depends(get_session)):
         content += f'<div class="entity-item">Product: {product.name} (brand: {product.brand.name})</div>'
     
     return LIST_TEMPLATE.format(title="Products", content=content)
+
+
+@app.delete("/vendors/{vendor_id}", response_class=HTMLResponse)
+async def delete_vendor(vendor_id: int, session = Depends(get_session)):
+    """Delete a vendor"""
+    vendor = session.get(Vendor, vendor_id)
+    if not vendor:
+        return '<div class="error">Vendor not found</div>'
+
+    name = vendor.name
+    session.delete(vendor)
+    session.commit()
+
+    # Return updated list and success message
+    vendors = session.execute(select(Vendor)).scalars().all()
+    items_html = ""
+    for v in vendors:
+        quote_count = len(v.quotes)
+        items_html += f'''<div class="entity-item">
+            Vendor: {v.name} (currency: {v.currency}, quotes: {quote_count})
+            <button class="delete-btn" hx-delete="/vendors/{v.id}" hx-target="#vendor-response" hx-confirm="Delete vendor '{v.name}'?">Delete</button>
+        </div>'''
+
+    return f'''
+        <div class="success">Deleted vendor: {name}</div>
+        <div id="vendors-list" hx-swap-oob="true">{items_html}</div>
+    '''
+
+
+@app.get("/vendors/fragment", response_class=HTMLResponse)
+async def get_vendors_fragment(session = Depends(get_session)):
+    """Get vendors list fragment"""
+    vendors = session.execute(select(Vendor)).scalars().all()
+    items_html = ""
+    for v in vendors:
+        quote_count = len(v.quotes)
+        items_html += f'''<div class="entity-item">
+            Vendor: {v.name} (currency: {v.currency}, quotes: {quote_count})
+            <button class="delete-btn" hx-delete="/vendors/{v.id}" hx-target="#vendor-response" hx-confirm="Delete vendor '{v.name}'?">Delete</button>
+        </div>'''
+    return items_html
 
 
 @app.get("/vendors")
@@ -312,6 +503,45 @@ async def list_vendors_html(session = Depends(get_session)):
         content += f'<div class="entity-item">Vendor: {vendor.name} (currency: {vendor.currency}, quotes: {quote_count})</div>'
     
     return LIST_TEMPLATE.format(title="Vendors", content=content)
+
+
+@app.delete("/quotes/{quote_id}", response_class=HTMLResponse)
+async def delete_quote(quote_id: int, session = Depends(get_session)):
+    """Delete a quote"""
+    quote = session.get(Quote, quote_id)
+    if not quote:
+        return '<div class="error">Quote not found</div>'
+
+    desc = f"{quote.vendor.name} → {quote.product.name}"
+    session.delete(quote)
+    session.commit()
+
+    # Return updated list and success message
+    quotes = session.execute(select(Quote)).scalars().all()
+    items_html = ""
+    for q in quotes:
+        items_html += f'''<div class="entity-item">
+            Quote: {q.vendor.name} → {q.product.brand.name} {q.product.name} = {q.value} {q.currency}
+            <button class="delete-btn" hx-delete="/quotes/{q.id}" hx-target="#quote-response" hx-confirm="Delete quote?">Delete</button>
+        </div>'''
+
+    return f'''
+        <div class="success">Deleted quote: {desc}</div>
+        <div id="quotes-list" hx-swap-oob="true">{items_html}</div>
+    '''
+
+
+@app.get("/quotes/fragment", response_class=HTMLResponse)
+async def get_quotes_fragment(session = Depends(get_session)):
+    """Get quotes list fragment"""
+    quotes = session.execute(select(Quote)).scalars().all()
+    items_html = ""
+    for q in quotes:
+        items_html += f'''<div class="entity-item">
+            Quote: {q.vendor.name} → {q.product.brand.name} {q.product.name} = {q.value} {q.currency}
+            <button class="delete-btn" hx-delete="/quotes/{q.id}" hx-target="#quote-response" hx-confirm="Delete quote?">Delete</button>
+        </div>'''
+    return items_html
 
 
 @app.get("/quotes")

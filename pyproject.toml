@@ -23,6 +23,7 @@ dev = [
     "eralchemy>=1.5.0",
     "factory-boy>=3.3.3",
     "litecli>=1.15.0",
+    "py-pglite[sqlalchemy]>=0.5.3",
     "pytest>=8.3.5",
 ]
 web = [
