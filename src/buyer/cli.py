@@ -22,18 +22,33 @@ Base.metadata.create_all(engine)
 Session = Config.get_session_maker()
 
 
-def add_brand(session, name):
-    """Add a new brand"""
-    existing = Brand.by_name(session, name)
-    if existing:
-        print(f"Brand '{name}' already exists")
-        return existing
+def add_brand(session: SessionType, name: str) -> Optional[Brand]:
+    """
+    Add a new brand to the database.
 
-    brand = Brand(name=name)
-    session.add(brand)
-    session.commit()
-    print(f"Added brand: {name}")
-    return brand
+    Args:
+        session: Active database session
+        name: Brand name to add
+
+    Returns:
+        Created or existing Brand instance, or None on error
+
+    Example:
+        >>> brand = add_brand(session, "Apple")
+        Added brand: Apple
+    """
+    from .services import BrandService, DuplicateError, ValidationError
+
+    try:
+        brand = BrandService.create(session, name)
+        print(f"Added brand: {name}")
+        return brand
+    except DuplicateError:
+        print(f"Brand '{name}' already exists")
+        return BrandService.get_by_name(session, name)
+    except ValidationError as e:
+        print(f"Error: {e}")
+        return None
 
 
 def add_product(session, brand_name, product_name):
@@ -154,15 +169,37 @@ def add_fx(session, code, usd_per_unit, date=None):
     return fx
 
 
-def list_entities(session, entity_type, filter_by=None, sort_by=None):
-    """List all entities of a given type"""
+def list_entities(
+    session: SessionType,
+    entity_type: str,
+    filter_by: Optional[str] = None,
+    sort_by: Optional[str] = None,
+    limit: int = 100,
+) -> None:
+    """
+    List all entities of a given type with pagination.
+
+    Uses service layer with eager loading to avoid N+1 query problems.
+
+    Args:
+        session: Active database session
+        entity_type: Type of entity to list ("brands", "products", "vendors", "quotes")
+        filter_by: Optional name filter for case-insensitive partial match
+        sort_by: Optional column to sort by (currently unused, reserved for future)
+        limit: Maximum number of results to display (default: 100)
+
+    Example:
+        >>> list_entities(session, "brands", filter_by="Apple")
+        ╒══════╤═══════╤═════════════════════╕
+        │   ID │ Name  │ Products            │
+        ╞══════╪═══════╪═════════════════════╡
+        │    1 │ Apple │ iPhone 15, iPhone 14│
+        ╘══════╧═══════╧═════════════════════╛
+    """
+    from .services import BrandService, ProductService, VendorService, QuoteService
+
     if entity_type == "brands":
-        query = select(Brand)
-        if filter_by:
-            query = query.where(Brand.name.ilike(f"%{filter_by}%"))
-        if sort_by:
-            query = query.order_by(sort_by)
-        results = session.execute(query).scalars().all()
+        results = BrandService.get_all(session, filter_by=filter_by, limit=limit)
         headers = ["ID", "Name", "Products"]
         data = [
             [b.id, b.name, ", ".join([p.name for p in b.products])] for b in results
@@ -170,34 +207,19 @@ def list_entities(session, entity_type, filter_by=None, sort_by=None):
         print(tabulate(data, headers=headers, tablefmt="grid"))
 
     elif entity_type == "products":
-        query = select(Product)
-        if filter_by:
-            query = query.where(Product.name.ilike(f"%{filter_by}%"))
-        if sort_by:
-            query = query.order_by(sort_by)
-        results = session.execute(query).scalars().all()
+        results = ProductService.get_all(session, filter_by=filter_by, limit=limit)
         headers = ["ID", "Name", "Brand"]
         data = [[p.id, p.name, p.brand.name] for p in results]
         print(tabulate(data, headers=headers, tablefmt="grid"))
 
     elif entity_type == "vendors":
-        query = select(Vendor)
-        if filter_by:
-            query = query.where(Vendor.name.ilike(f"%{filter_by}%"))
-        if sort_by:
-            query = query.order_by(sort_by)
-        results = session.execute(query).scalars().all()
+        results = VendorService.get_all(session, filter_by=filter_by, limit=limit)
         headers = ["ID", "Name", "Currency", "Quotes"]
         data = [[v.id, v.name, v.currency, len(v.quotes)] for v in results]
         print(tabulate(data, headers=headers, tablefmt="grid"))
 
     elif entity_type == "quotes":
-        query = select(Quote)
-        if filter_by:
-            query = query.join(Product).where(Product.name.ilike(f"%{filter_by}%"))
-        if sort_by:
-            query = query.order_by(sort_by)
-        results = session.execute(query).scalars().all()
+        results = QuoteService.get_all(session, filter_by=filter_by, limit=limit)
         headers = ["ID", "Vendor", "Product", "Price", "Currency"]
         data = [
             [
