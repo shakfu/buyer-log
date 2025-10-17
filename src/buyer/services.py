@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from .models import Brand, Product, Vendor, Quote, Forex
+from .audit import AuditService, AuditAction
 
 logger = logging.getLogger("buyer")
 
@@ -80,6 +81,15 @@ class BrandService:
             session.add(brand)
             session.commit()
             logger.info(f"Created brand: {name}")
+
+            # Audit log
+            AuditService.log_create(
+                entity_type="brand",
+                entity_id=brand.id,
+                entity_name=brand.name,
+                session=session,
+            )
+
             return brand
         except IntegrityError as e:
             session.rollback()
