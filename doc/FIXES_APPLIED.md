@@ -18,7 +18,7 @@ Successfully addressed **P0 and P1 critical issues** from the code review:
 
 ## P0 - Critical Fixes (COMPLETED)
 
-### 1. Test Coverage (FIXED ✓)
+### 1. Test Coverage (FIXED [x])
 
 **Before:** Only 1 test covering basic workflow
 **After:** 21 comprehensive unit and integration tests
@@ -63,7 +63,7 @@ $ uv run pytest -v
 ======================== 21 passed, 3 warnings in 0.08s ========================
 ```
 
-### 2. Input Validation (FIXED ✓)
+### 2. Input Validation (FIXED [x])
 
 **Added validation to web endpoints:**
 
@@ -82,7 +82,7 @@ if len(name) > 255:
 - Length validation (max 255 characters)
 - Proper error messages returned to user
 
-### 3. Configuration Management (FIXED ✓)
+### 3. Configuration Management (FIXED [x])
 
 **Created:** `src/buyer/config.py`
 
@@ -121,7 +121,7 @@ class Config:
 
 ## P1 - High Priority Fixes (COMPLETED)
 
-### 4. Error Handling (FIXED ✓)
+### 4. Error Handling (FIXED [x])
 
 **Before:**
 ```python
@@ -162,7 +162,7 @@ except Exception as e:
 - `src/buyer/cli.py` - Main function error handling
 - `src/buyer/web.py` - POST endpoint error handling (brands example)
 
-### 5. Type Hints (ADDED ✓)
+### 5. Type Hints (ADDED [x])
 
 **Added imports:**
 ```python
@@ -299,9 +299,9 @@ buyer add --vendor test --product test --quote 100
 ## Next Steps (Recommended Priority)
 
 ### Immediate (P1)
-1. ✓ ~~Add comprehensive model tests~~ (DONE)
-2. ✓ ~~Extract configuration module~~ (DONE)
-3. ✓ ~~Improve error handling~~ (DONE)
+1. [x] ~~Add comprehensive model tests~~ (DONE)
+2. [x] ~~Extract configuration module~~ (DONE)
+3. [x] ~~Improve error handling~~ (DONE)
 4. Add CLI integration tests
 5. Add web endpoint tests
 6. Fix Forex model (add date field, unique constraint)
@@ -325,13 +325,13 @@ buyer add --vendor test --product test --quote 100
 Successfully addressed the most critical issues identified in the code review:
 
 **Completed:**
-- ✓ Test coverage dramatically improved (1 → 21 tests)
-- ✓ Database configuration centralized and environment-aware
-- ✓ Error handling improved with specific exception types
-- ✓ Input validation added to web endpoints
-- ✓ Type hints added for better tooling support
+- [x] Test coverage dramatically improved (1 → 21 tests)
+- [x] Database configuration centralized and environment-aware
+- [x] Error handling improved with specific exception types
+- [x] Input validation added to web endpoints
+- [x] Type hints added for better tooling support
 
 **Result:**
 The codebase is significantly more robust, testable, and maintainable. The foundation is now in place for continued improvement with lower risk of regressions.
 
-**All tests passing:** 21/21 ✓
+**All tests passing:** 21/21 [x]
