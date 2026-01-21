@@ -19,14 +19,17 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session as SessionType
 
 from .config import Config
-from .models import Base, Brand, Product, Vendor, Quote, Forex
+from .models import Base, Brand, Product, Vendor, Quote, Forex, PriceAlert
 from .services import (
     BrandService,
     ProductService,
     VendorService,
     QuoteService,
+    PriceAlertService,
+    QuoteHistoryService,
     DuplicateError,
     ValidationError,
+    NotFoundError,
 )
 
 
@@ -186,6 +189,36 @@ class AddForexModal(ModalScreen[tuple[str, float, str | None] | None]):
         self.dismiss(None)
 
 
+class AddAlertModal(ModalScreen[tuple[str, float] | None]):
+    """Modal for adding a price alert."""
+
+    BINDINGS = [Binding("escape", "cancel", "Cancel")]
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="modal-dialog"):
+            yield Label("Add Price Alert", id="modal-title")
+            yield Input(placeholder="Product name", id="product-name")
+            yield Input(placeholder="Price threshold", id="threshold")
+            with Horizontal(id="modal-buttons"):
+                yield Button("Add", variant="primary", id="add-btn")
+                yield Button("Cancel", variant="default", id="cancel-btn")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "add-btn":
+            product = self.query_one("#product-name", Input).value
+            threshold_str = self.query_one("#threshold", Input).value
+            try:
+                threshold = float(threshold_str) if threshold_str else 0.0
+                self.dismiss((product, threshold))
+            except ValueError:
+                self.notify("Invalid threshold value", severity="error")
+        else:
+            self.dismiss(None)
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+
 class ConfirmDeleteModal(ModalScreen[bool]):
     """Modal for confirming deletion."""
 
@@ -294,6 +327,8 @@ class BuyerApp(App):
                 yield DataTable(id="quotes-table")
             with TabPane("Forex", id="forex-tab"):
                 yield DataTable(id="forex-table")
+            with TabPane("Alerts", id="alerts-tab"):
+                yield DataTable(id="alerts-table")
         yield Footer()
 
     def on_mount(self) -> None:
@@ -316,12 +351,16 @@ class BuyerApp(App):
         vendors_table.cursor_type = "row"
 
         quotes_table = self.query_one("#quotes-table", DataTable)
-        quotes_table.add_columns("ID", "Vendor", "Product", "Price", "Currency")
+        quotes_table.add_columns("ID", "Vendor", "Product", "Price", "Total", "Trend", "Currency")
         quotes_table.cursor_type = "row"
 
         forex_table = self.query_one("#forex-table", DataTable)
         forex_table.add_columns("ID", "Code", "USD/Unit", "Date")
         forex_table.cursor_type = "row"
+
+        alerts_table = self.query_one("#alerts-table", DataTable)
+        alerts_table.add_columns("ID", "Product", "Threshold", "Status", "Triggered At")
+        alerts_table.cursor_type = "row"
 
     def _refresh_all(self, filter_by: str | None = None) -> None:
         """Refresh all data tables."""
@@ -330,6 +369,7 @@ class BuyerApp(App):
         self._refresh_vendors(filter_by)
         self._refresh_quotes(filter_by)
         self._refresh_forex(filter_by)
+        self._refresh_alerts(filter_by)
 
     def _refresh_brands(self, filter_by: str | None = None) -> None:
         table = self.query_one("#brands-table", DataTable)
@@ -355,12 +395,56 @@ class BuyerApp(App):
             table.add_row(v.id, v.name, v.currency, discount, len(v.quotes), key=str(v.id))
 
     def _refresh_quotes(self, filter_by: str | None = None) -> None:
+        from rich.text import Text
+
         table = self.query_one("#quotes-table", DataTable)
         table.clear()
         results = QuoteService.get_all(self.session, filter_by=filter_by)
+
+        # Get best prices for highlighting
+        product_ids = list(set(q.product_id for q in results))
+        best_prices = QuoteService.get_best_prices_by_product(self.session, product_ids)
+
+        # Get triggered alerts for yellow highlighting
+        triggered_alerts = PriceAlertService.get_triggered(self.session)
+        alerted_product_ids = {a.product_id for a in triggered_alerts}
+
         for q in results:
             product_name = f"{q.product.brand.name} {q.product.name}"
-            table.add_row(q.id, q.vendor.name, product_name, f"{q.value:.2f}", q.currency, key=str(q.id))
+
+            # Check if this is the best price
+            is_best = (
+                q.product_id in best_prices
+                and best_prices[q.product_id].id == q.id
+            )
+
+            # Format price with highlighting
+            price_str = f"{q.value:.2f}"
+            if is_best:
+                price_text = Text(price_str, style="bold green")
+            elif q.product_id in alerted_product_ids:
+                price_text = Text(price_str, style="yellow")
+            else:
+                price_text = Text(price_str)
+
+            # Calculate total cost
+            total_str = f"{q.total_cost:.2f}"
+
+            # Compute trend
+            history = QuoteHistoryService.get_history(self.session, q.id)
+            trend = QuoteHistoryService.compute_trend(history)
+            trend_symbol = {"up": "^", "down": "v", "stable": "-", "new": "*"}.get(trend, "?")
+
+            table.add_row(
+                q.id,
+                q.vendor.name,
+                product_name,
+                price_text,
+                total_str,
+                trend_symbol,
+                q.currency,
+                key=str(q.id),
+            )
 
     def _refresh_forex(self, filter_by: str | None = None) -> None:
         table = self.query_one("#forex-table", DataTable)
@@ -371,6 +455,36 @@ class BuyerApp(App):
         results = self.session.execute(query).scalars().all()
         for f in results:
             table.add_row(f.id, f.code, f.usd_per_unit, str(f.date), key=str(f.id))
+
+    def _refresh_alerts(self, filter_by: str | None = None) -> None:
+        from rich.text import Text
+
+        table = self.query_one("#alerts-table", DataTable)
+        table.clear()
+        alerts = PriceAlertService.get_all(self.session)
+
+        for a in alerts:
+            if filter_by and filter_by.lower() not in a.product.name.lower():
+                continue
+
+            status = "Active" if a.active else "Inactive"
+            if a.triggered_at:
+                status_text = Text("Triggered", style="bold yellow")
+            elif a.active:
+                status_text = Text("Active", style="green")
+            else:
+                status_text = Text("Inactive", style="dim")
+
+            triggered_at = str(a.triggered_at) if a.triggered_at else "-"
+
+            table.add_row(
+                a.id,
+                a.product.name,
+                f"${a.threshold_value:.2f}",
+                status_text,
+                triggered_at,
+                key=str(a.id),
+            )
 
     def _get_active_tab(self) -> str:
         """Get the currently active tab ID."""
@@ -390,6 +504,8 @@ class BuyerApp(App):
             self.push_screen(AddQuoteModal(), self._on_quote_added)
         elif active == "forex-tab":
             self.push_screen(AddForexModal(), self._on_forex_added)
+        elif active == "alerts-tab":
+            self.push_screen(AddAlertModal(), self._on_alert_added)
 
     def _on_brand_added(self, result: str | None) -> None:
         if result:
@@ -530,6 +646,21 @@ class BuyerApp(App):
                 self.session.rollback()
                 self.notify(str(e), severity="error")
 
+    def _on_alert_added(self, result: tuple[str, float] | None) -> None:
+        if result:
+            product_name, threshold = result
+            try:
+                alert = PriceAlertService.create(self.session, product_name, threshold)
+                self.notify(f"Added alert for '{product_name}' at ${threshold:.2f}")
+                self._refresh_alerts()
+            except NotFoundError as e:
+                self.notify(str(e), severity="error")
+            except ValidationError as e:
+                self.notify(str(e), severity="error")
+            except Exception as e:
+                self.session.rollback()
+                self.notify(str(e), severity="error")
+
     def action_delete(self) -> None:
         """Delete the selected entity."""
         active = self._get_active_tab()
@@ -565,6 +696,8 @@ class BuyerApp(App):
                 entity = self.session.get(Quote, entity_id)
             elif entity_type == "forex":
                 entity = self.session.get(Forex, entity_id)
+            elif entity_type == "alert":
+                entity = self.session.get(PriceAlert, entity_id)
             else:
                 return
 

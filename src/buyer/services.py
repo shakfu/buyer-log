@@ -14,7 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
-from .models import Brand, Product, Vendor, Quote, Forex
+from .models import Brand, Product, Vendor, Quote, Forex, QuoteHistory, PriceAlert
 from .audit import AuditService, AuditAction
 
 logger = logging.getLogger("buyer")
@@ -496,6 +496,109 @@ class QuoteService:
         results = session.execute(query).unique().scalars().all()
         return list(results)
 
+    @staticmethod
+    def get_best_prices_by_product(
+        session: Session, product_ids: Optional[List[int]] = None
+    ) -> Dict[int, Quote]:
+        """
+        Get the best (lowest) price quote for each product.
+
+        Args:
+            session: Database session
+            product_ids: Optional list of product IDs to filter
+
+        Returns:
+            Dict mapping product_id to the Quote with lowest value
+        """
+        from sqlalchemy import func as sqlfunc
+
+        # Subquery to get minimum price per product
+        subquery = (
+            select(Quote.product_id, sqlfunc.min(Quote.value).label("min_value"))
+            .group_by(Quote.product_id)
+        )
+
+        if product_ids:
+            subquery = subquery.where(Quote.product_id.in_(product_ids))
+
+        subquery = subquery.subquery()
+
+        # Main query to get the actual quotes
+        query = (
+            select(Quote)
+            .options(
+                joinedload(Quote.vendor),
+                joinedload(Quote.product).joinedload(Product.brand),
+            )
+            .join(
+                subquery,
+                (Quote.product_id == subquery.c.product_id)
+                & (Quote.value == subquery.c.min_value),
+            )
+        )
+
+        results = session.execute(query).unique().scalars().all()
+
+        # Build dict, handling ties by keeping first encountered
+        best_prices: Dict[int, Quote] = {}
+        for quote in results:
+            if quote.product_id not in best_prices:
+                best_prices[quote.product_id] = quote
+
+        return best_prices
+
+    @staticmethod
+    def update_price(
+        session: Session, quote_id: int, new_price: float
+    ) -> Quote:
+        """
+        Update a quote's price and record the change in history.
+
+        Args:
+            session: Database session
+            quote_id: Quote ID
+            new_price: New price value
+
+        Returns:
+            Updated Quote instance
+
+        Raises:
+            ValidationError: If price is invalid
+            NotFoundError: If quote not found
+        """
+        if new_price < 0:
+            raise ValidationError("Price cannot be negative")
+
+        quote = session.get(Quote, quote_id)
+        if not quote:
+            raise NotFoundError(f"Quote with ID {quote_id} not found")
+
+        old_value = quote.value
+        try:
+            quote.value = new_price
+            session.flush()
+
+            # Record history
+            history = QuoteHistory(
+                quote_id=quote.id,
+                old_value=old_value,
+                new_value=new_price,
+                change_type="update",
+            )
+            session.add(history)
+            session.commit()
+
+            # Check for triggered alerts
+            from .services import PriceAlertService
+            PriceAlertService.check_alerts(session, quote.product, new_price)
+
+            logger.info(f"Updated quote {quote_id} price: {old_value} -> {new_price}")
+            return quote
+        except SQLAlchemyError as e:
+            session.rollback()
+            logger.error(f"Failed to update quote price: {e}")
+            raise ServiceError(f"Failed to update quote price: {e}") from e
+
 
 class ForexService:
     """Service for forex rate management"""
@@ -573,3 +676,274 @@ class ForexService:
         return session.execute(
             select(Forex).where(Forex.code == code.upper()).order_by(Forex.date.desc()).limit(1)
         ).scalar_one_or_none()
+
+
+class QuoteHistoryService:
+    """Service for quote history tracking"""
+
+    @staticmethod
+    def record_change(
+        session: Session,
+        quote: Quote,
+        old_value: Optional[float],
+        new_value: float,
+        change_type: str = "update",
+    ) -> QuoteHistory:
+        """
+        Record a price change for a quote.
+
+        Args:
+            session: Database session
+            quote: Quote instance
+            old_value: Previous price (None for new quotes)
+            new_value: New price
+            change_type: "create" or "update"
+
+        Returns:
+            Created QuoteHistory instance
+        """
+        try:
+            history = QuoteHistory(
+                quote_id=quote.id,
+                old_value=old_value,
+                new_value=new_value,
+                change_type=change_type,
+            )
+            session.add(history)
+            session.commit()
+            logger.info(f"Recorded price change for quote {quote.id}: {old_value} -> {new_value}")
+            return history
+        except SQLAlchemyError as e:
+            session.rollback()
+            logger.error(f"Failed to record price history: {e}")
+            raise ServiceError(f"Failed to record price history: {e}") from e
+
+    @staticmethod
+    def get_history(session: Session, quote_id: int) -> List[QuoteHistory]:
+        """
+        Get price history for a specific quote.
+
+        Args:
+            session: Database session
+            quote_id: Quote ID
+
+        Returns:
+            List of QuoteHistory entries ordered by changed_at descending, then id descending
+        """
+        results = session.execute(
+            select(QuoteHistory)
+            .where(QuoteHistory.quote_id == quote_id)
+            .order_by(QuoteHistory.changed_at.desc(), QuoteHistory.id.desc())
+        ).scalars().all()
+        return list(results)
+
+    @staticmethod
+    def get_product_history(session: Session, product_id: int) -> List[QuoteHistory]:
+        """
+        Get all price changes for a product across all vendors.
+
+        Args:
+            session: Database session
+            product_id: Product ID
+
+        Returns:
+            List of QuoteHistory entries ordered by changed_at descending, then id descending
+        """
+        results = session.execute(
+            select(QuoteHistory)
+            .join(Quote)
+            .where(Quote.product_id == product_id)
+            .order_by(QuoteHistory.changed_at.desc(), QuoteHistory.id.desc())
+        ).scalars().all()
+        return list(results)
+
+    @staticmethod
+    def compute_trend(history: List[QuoteHistory]) -> str:
+        """
+        Compute price trend from history.
+
+        Args:
+            history: List of QuoteHistory entries (newest first)
+
+        Returns:
+            "up", "down", "stable", or "new"
+        """
+        if not history:
+            return "new"
+
+        if len(history) < 2:
+            if history[0].change_type == "create":
+                return "new"
+            return "stable"
+
+        latest = history[0].new_value
+        previous = history[1].new_value
+
+        if latest > previous:
+            return "up"
+        elif latest < previous:
+            return "down"
+        else:
+            return "stable"
+
+
+class PriceAlertService:
+    """Service for price alert management"""
+
+    @staticmethod
+    def create(
+        session: Session,
+        product_name: str,
+        threshold_value: float,
+        threshold_currency: str = "USD",
+    ) -> PriceAlert:
+        """
+        Create a new price alert.
+
+        Args:
+            session: Database session
+            product_name: Product name
+            threshold_value: Price threshold
+            threshold_currency: Currency for threshold (default: USD)
+
+        Returns:
+            Created PriceAlert instance
+
+        Raises:
+            ValidationError: If threshold is invalid
+            NotFoundError: If product not found
+        """
+        if threshold_value <= 0:
+            raise ValidationError("Threshold value must be positive")
+
+        product = Product.by_name(session, product_name)
+        if not product:
+            raise NotFoundError(f"Product '{product_name}' not found")
+
+        try:
+            alert = PriceAlert(
+                product_id=product.id,
+                threshold_value=threshold_value,
+                threshold_currency=threshold_currency.upper(),
+            )
+            session.add(alert)
+            session.commit()
+            logger.info(f"Created price alert for {product_name} at {threshold_value} {threshold_currency}")
+            return alert
+        except SQLAlchemyError as e:
+            session.rollback()
+            logger.error(f"Failed to create price alert: {e}")
+            raise ServiceError(f"Failed to create price alert: {e}") from e
+
+    @staticmethod
+    def check_alerts(session: Session, product: Product, current_price: float) -> List[PriceAlert]:
+        """
+        Check and trigger alerts for a product at current price.
+
+        Args:
+            session: Database session
+            product: Product instance
+            current_price: Current price in USD
+
+        Returns:
+            List of newly triggered alerts
+        """
+        import datetime
+
+        alerts = session.execute(
+            select(PriceAlert)
+            .where(PriceAlert.product_id == product.id)
+            .where(PriceAlert.active == 1)
+            .where(PriceAlert.triggered_at.is_(None))
+        ).scalars().all()
+
+        triggered = []
+        for alert in alerts:
+            if current_price <= alert.threshold_value:
+                alert.triggered_at = datetime.datetime.now()
+                triggered.append(alert)
+                logger.info(
+                    f"Alert triggered for product {product.name}: "
+                    f"price {current_price} <= threshold {alert.threshold_value}"
+                )
+
+        if triggered:
+            session.commit()
+
+        return triggered
+
+    @staticmethod
+    def get_active(session: Session) -> List[PriceAlert]:
+        """
+        Get all active alerts.
+
+        Returns:
+            List of active PriceAlert instances
+        """
+        results = session.execute(
+            select(PriceAlert)
+            .options(joinedload(PriceAlert.product))
+            .where(PriceAlert.active == 1)
+            .order_by(PriceAlert.created_at.desc())
+        ).unique().scalars().all()
+        return list(results)
+
+    @staticmethod
+    def get_triggered(session: Session) -> List[PriceAlert]:
+        """
+        Get all triggered alerts.
+
+        Returns:
+            List of triggered PriceAlert instances
+        """
+        results = session.execute(
+            select(PriceAlert)
+            .options(joinedload(PriceAlert.product))
+            .where(PriceAlert.triggered_at.isnot(None))
+            .order_by(PriceAlert.triggered_at.desc())
+        ).unique().scalars().all()
+        return list(results)
+
+    @staticmethod
+    def get_all(session: Session) -> List[PriceAlert]:
+        """
+        Get all alerts.
+
+        Returns:
+            List of all PriceAlert instances
+        """
+        results = session.execute(
+            select(PriceAlert)
+            .options(joinedload(PriceAlert.product))
+            .order_by(PriceAlert.created_at.desc())
+        ).unique().scalars().all()
+        return list(results)
+
+    @staticmethod
+    def deactivate(session: Session, alert_id: int) -> PriceAlert:
+        """
+        Deactivate an alert.
+
+        Args:
+            session: Database session
+            alert_id: Alert ID
+
+        Returns:
+            Updated PriceAlert instance
+
+        Raises:
+            NotFoundError: If alert not found
+        """
+        alert = session.get(PriceAlert, alert_id)
+        if not alert:
+            raise NotFoundError(f"Alert with ID {alert_id} not found")
+
+        try:
+            alert.active = 0
+            session.commit()
+            logger.info(f"Deactivated alert {alert_id}")
+            return alert
+        except SQLAlchemyError as e:
+            session.rollback()
+            logger.error(f"Failed to deactivate alert: {e}")
+            raise ServiceError(f"Failed to deactivate alert: {e}") from e

@@ -8,6 +8,7 @@ A Python tool for purchasing support and vendor quote management with CLI and TU
 - **Text User Interface (TUI)** - Interactive terminal UI built with Textual
 - **Data Persistence** - SQLAlchemy ORM with SQLite support
 - **Multi-currency Support** - Forex rate tracking with automatic currency conversion
+- **Quote Analysis** - Best price highlighting, price history tracking, and price alerts
 - **Service Layer** - Business logic separation with validation and error handling
 - **Audit Logging** - Track entity creation, updates, and deletions
 - **Testing** - pytest-based test suite with factory pattern
@@ -43,6 +44,9 @@ buyer add --vendor amazon.com --product iphone-14 --quote 600
 buyer add-fx --code EUR --usd-per-unit 1.085
 buyer add-fx --code GBP --usd-per-unit 1.27 --date 2025-01-15
 
+# Add quotes with shipping and tax
+buyer add --vendor amazon.com --product iphone-14 --quote 600 --shipping 10.00 --tax-rate 8.5
+
 # List entities
 buyer list brands
 buyer list products
@@ -65,6 +69,16 @@ buyer delete quote --id 1
 
 # Seed database with sample data
 buyer seed
+
+# Price alerts
+buyer alert add "iPhone 15 Pro" 900      # Create alert when price drops to $900
+buyer alert list                          # List all alerts
+buyer alert list --triggered              # List triggered alerts only
+buyer alert deactivate 1                  # Deactivate alert by ID
+
+# Price history
+buyer history --product "iPhone 15 Pro"   # View price history for a product
+buyer history --quote-id 1                # View price history for a specific quote
 ```
 
 ### Text User Interface (TUI)
@@ -76,10 +90,15 @@ buyer tui
 ```
 
 The TUI provides:
-- Tabbed interface for Brands, Products, Vendors, Quotes, and Forex rates
+- Tabbed interface for Brands, Products, Vendors, Quotes, Forex rates, and Alerts
 - DataTables with row selection
 - Modal forms for adding entities
 - Search/filter functionality
+- **Quote Analysis Features**:
+  - Best prices highlighted in green
+  - Total cost calculation (with discount, shipping, tax)
+  - Price trend indicators (^ up, v down, - stable, * new)
+  - Triggered alerts highlighted in yellow
 - Keyboard shortcuts:
   - `q` - Quit
   - `a` - Add new entity
@@ -137,7 +156,8 @@ buyer-log/
 │   ├── conftest.py      # pytest fixtures
 │   ├── factories.py     # Factory Boy test data
 │   ├── test_models.py   # Model tests
-│   └── test_services.py # Service layer tests
+│   ├── test_services.py # Service layer tests
+│   └── test_quote_analysis.py # Quote analysis feature tests
 ├── doc/                 # Documentation
 │   └── er_model.svg     # Auto-generated ER diagram
 └── pyproject.toml       # Project dependencies
@@ -150,13 +170,17 @@ The core domain models:
 - **Vendor** - Selling entities with currency, discount codes, and brand relationships
 - **Brand** - Manufacturing entities linked to products and vendors
 - **Product** - Items with brand associations that can be quoted by vendors
-- **Quote** - Price quotes from vendors for specific products
+- **Quote** - Price quotes from vendors with shipping, tax, and total cost calculation
+- **QuoteHistory** - Price change tracking for quotes (create/update events)
+- **PriceAlert** - Price threshold alerts for products
 - **Forex** - Currency exchange rates for multi-currency support
 
 Key relationships:
 - Many-to-many between Vendors and Brands (via `vendor_brand` junction table)
 - One-to-many from Brand to Products
 - One-to-many from Vendor and Product to Quotes
+- One-to-many from Quote to QuoteHistory
+- One-to-many from Product to PriceAlert
 
 See the auto-generated ER diagram: `doc/er_model.svg`
 
@@ -166,7 +190,9 @@ Business logic is separated into service classes:
 - `BrandService` - Brand CRUD with validation
 - `ProductService` - Product management with eager loading
 - `VendorService` - Vendor operations
-- `QuoteService` - Quote management with currency conversion
+- `QuoteService` - Quote management with currency conversion, best price detection, and price updates
+- `QuoteHistoryService` - Price history tracking and trend computation
+- `PriceAlertService` - Price alert creation, triggering, and management
 - `AuditService` - Entity change tracking
 
 ## Technologies

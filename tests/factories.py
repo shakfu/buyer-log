@@ -40,7 +40,6 @@ class VendorFactory(factory.alchemy.SQLAlchemyModelFactory):
 
 class QuoteFactory(factory.alchemy.SQLAlchemyModelFactory):
     id = factory.Sequence(lambda n: '%s' % n)
-    date_created = factory.Faker('date_this_decade')
     currency = factory.Faker('currency_code')
     discount = factory.fuzzy.FuzzyFloat(0.05, 0.15)
     value = factory.fuzzy.FuzzyFloat(50.0, 1000.0)
@@ -49,3 +48,25 @@ class QuoteFactory(factory.alchemy.SQLAlchemyModelFactory):
 
     class Meta:
         model = models.Quote
+
+
+class QuoteHistoryFactory(factory.alchemy.SQLAlchemyModelFactory):
+    id = factory.Sequence(lambda n: '%s' % n)
+    quote = factory.SubFactory(QuoteFactory)
+    old_value = factory.fuzzy.FuzzyFloat(50.0, 1000.0)
+    new_value = factory.fuzzy.FuzzyFloat(50.0, 1000.0)
+    change_type = "update"
+
+    class Meta:
+        model = models.QuoteHistory
+
+
+class PriceAlertFactory(factory.alchemy.SQLAlchemyModelFactory):
+    id = factory.Sequence(lambda n: '%s' % n)
+    product = factory.SubFactory(ProductFactory)
+    threshold_value = factory.fuzzy.FuzzyFloat(50.0, 1000.0)
+    threshold_currency = "USD"
+    active = 1
+
+    class Meta:
+        model = models.PriceAlert

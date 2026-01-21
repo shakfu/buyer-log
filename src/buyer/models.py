@@ -142,8 +142,6 @@ class Quote(Base):
     __tablename__ = "quote"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    # time_created = mapped_column(DateTime(timezone=True), default=func.now())
-    # date_created = mapped_column(Date, default=func.now())
     product_id: Mapped[int] = mapped_column(Integer, ForeignKey("product.id"))
     product: Mapped["Product"] = relationship("Product", back_populates="quotes")
     vendor_id: Mapped[int] = mapped_column(Integer, ForeignKey("vendor.id"))
@@ -153,9 +151,56 @@ class Quote(Base):
     original_value: Mapped[float] = mapped_column(Float, nullable=True)
     original_currency: Mapped[str] = mapped_column(String, nullable=True)
     discount: Mapped[float] = mapped_column(Float, default=0.0)
+    shipping_cost: Mapped[float | None] = mapped_column(Float, nullable=True)
+    tax_rate: Mapped[float | None] = mapped_column(Float, nullable=True)
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime, default=func.now())
+
+    @property
+    def total_cost(self) -> float:
+        """Calculate total cost including discount, shipping, and tax."""
+        base = self.value * (1 - (self.discount / 100))
+        shipping = self.shipping_cost or 0.0
+        tax_multiplier = 1 + ((self.tax_rate or 0.0) / 100)
+        return (base + shipping) * tax_multiplier
 
     def __repr__(self):
         return f"<Quote({self.vendor.name} / {self.product.brand.name} {self.product.name} / {self.value} {self.currency})>"
+
+
+class QuoteHistory(Base):
+    """History of price changes for a quote"""
+
+    __tablename__ = "quote_history"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    quote_id: Mapped[int] = mapped_column(ForeignKey("quote.id"), index=True)
+    quote: Mapped["Quote"] = relationship("Quote")
+    old_value: Mapped[float | None] = mapped_column(Float, nullable=True)
+    new_value: Mapped[float] = mapped_column(Float)
+    changed_at: Mapped[datetime.datetime] = mapped_column(DateTime, default=func.now())
+    change_type: Mapped[str] = mapped_column(String, default="update")  # "create" or "update"
+
+    def __repr__(self):
+        return f"<QuoteHistory(quote_id={self.quote_id}, {self.old_value} -> {self.new_value})>"
+
+
+class PriceAlert(Base):
+    """Price alerts for products"""
+
+    __tablename__ = "price_alert"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    product_id: Mapped[int] = mapped_column(ForeignKey("product.id"), index=True)
+    product: Mapped["Product"] = relationship("Product")
+    threshold_value: Mapped[float] = mapped_column(Float)
+    threshold_currency: Mapped[str] = mapped_column(String, default="USD")
+    active: Mapped[int] = mapped_column(Integer, default=1)  # SQLite bool
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime, default=func.now())
+    triggered_at: Mapped[datetime.datetime | None] = mapped_column(DateTime, nullable=True)
+
+    def __repr__(self):
+        status = "active" if self.active else "inactive"
+        return f"<PriceAlert(product_id={self.product_id}, threshold={self.threshold_value}, {status})>"
 
 
 if __name__ == "__main__":

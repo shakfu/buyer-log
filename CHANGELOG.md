@@ -5,6 +5,49 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-01-21
+
+### Added
+- **Quote Analysis Features** - Tools for making better purchasing decisions
+  - **Best Price Detection** - Automatically identifies lowest price per product
+  - **Total Cost Calculation** - Includes discount, shipping, and tax in price comparison
+  - **Price History Tracking** - Records all price changes with timestamps
+  - **Price Trend Indicators** - Shows if prices are going up (^), down (v), stable (-), or new (*)
+  - **Price Alerts** - Set threshold alerts and get notified when prices drop
+
+- **New Models**
+  - `QuoteHistory` - Tracks price changes (create/update events) for quotes
+  - `PriceAlert` - Price threshold alerts with product association and trigger tracking
+
+- **New Services**
+  - `QuoteHistoryService` - Record changes, get history, compute trends
+  - `PriceAlertService` - Create, check, trigger, and manage price alerts
+  - Extended `QuoteService` with `get_best_prices_by_product()` and `update_price()`
+
+- **CLI Commands**
+  - `buyer alert add <product> <threshold>` - Create price alert
+  - `buyer alert list [--triggered]` - List all or triggered alerts
+  - `buyer alert deactivate <id>` - Deactivate an alert
+  - `buyer history --product <name>` - View product price history
+  - `buyer history --quote-id <id>` - View quote price history
+  - Extended `buyer add` with `--shipping` and `--tax-rate` options
+
+- **TUI Enhancements**
+  - New **Alerts tab** for managing price alerts
+  - Best prices highlighted in **green** in Quotes tab
+  - **Total cost** column showing calculated total with shipping/tax
+  - **Trend indicator** column (^/v/-/*)
+  - Products with triggered alerts highlighted in **yellow**
+
+- **Quote Model Extensions**
+  - `shipping_cost` field for shipping charges
+  - `tax_rate` field for tax percentage
+  - `created_at` timestamp
+  - `total_cost` property calculating `(base * (1-discount) + shipping) * (1 + tax_rate)`
+
+- **Tests**
+  - `test_quote_analysis.py` with 30 new tests covering all quote analysis features
+
 ## [0.2.0] - 2026-01-21
 
 ### Added

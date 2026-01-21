@@ -10,7 +10,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import sessionmaker, Session as SessionType
 from tabulate import tabulate
-from .models import Base, Brand, Product, Vendor, Quote, Forex
+from .models import Base, Brand, Product, Vendor, Quote, Forex, QuoteHistory, PriceAlert
 from .config import Config
 
 # Setup logging
@@ -86,8 +86,10 @@ def add_vendor(session, name, currency="USD", discount_code=None, discount=0.0):
     return vendor
 
 
-def add_quote(session, vendor_name, product_name, price, brand_name=None):
+def add_quote(session, vendor_name, product_name, price, brand_name=None, shipping_cost=None, tax_rate=None):
     """Add a quote from a vendor for a product"""
+    from .services import QuoteHistoryService
+
     vendor = Vendor.by_name(session, vendor_name)
     if not vendor:
         create_vendor = input(f"Vendor '{vendor_name}' not found. Create it? (y/n): ")
@@ -132,10 +134,20 @@ def add_quote(session, vendor_name, product_name, price, brand_name=None):
         value=value,
         original_value=original_value,
         original_currency=original_currency,
+        shipping_cost=shipping_cost,
+        tax_rate=tax_rate,
     )
     session.add(quote)
     session.commit()
+
+    # Record creation in history
+    QuoteHistoryService.record_change(session, quote, None, value, "create")
+
     print(f"Added quote: {vendor_name} -> {product_name} = {price} {vendor.currency}")
+    if shipping_cost:
+        print(f"  Shipping: {shipping_cost}")
+    if tax_rate:
+        print(f"  Tax rate: {tax_rate}%")
     return quote
 
 
@@ -554,6 +566,16 @@ def main():
         default=0.0,
         help="Discount percentage for vendor",
     )
+    opt(
+        "--shipping",
+        type=float,
+        help="Shipping cost for quote",
+    )
+    opt(
+        "--tax-rate",
+        type=float,
+        help="Tax rate percentage for quote",
+    )
 
     # Add-fx command
     add_fx_parser = subparsers.add_parser("add-fx", help="Add forex rates")
@@ -600,6 +622,28 @@ def main():
     # Seed command
     subparsers.add_parser("seed", help="Populate database with sample data")
 
+    # Alert command
+    alert_parser = subparsers.add_parser("alert", help="Manage price alerts")
+    alert_subparsers = alert_parser.add_subparsers(dest="alert_command", help="Alert commands")
+
+    # Alert add
+    alert_add_parser = alert_subparsers.add_parser("add", help="Add a price alert")
+    alert_add_parser.add_argument("product", type=str, help="Product name")
+    alert_add_parser.add_argument("threshold", type=float, help="Price threshold")
+
+    # Alert list
+    alert_list_parser = alert_subparsers.add_parser("list", help="List price alerts")
+    alert_list_parser.add_argument("--triggered", action="store_true", help="Show only triggered alerts")
+
+    # Alert deactivate
+    alert_deactivate_parser = alert_subparsers.add_parser("deactivate", help="Deactivate an alert")
+    alert_deactivate_parser.add_argument("id", type=int, help="Alert ID")
+
+    # History command
+    history_parser = subparsers.add_parser("history", help="View price history")
+    history_parser.add_argument("--product", type=str, help="Product name")
+    history_parser.add_argument("--quote-id", type=int, help="Quote ID")
+
     args = parser.parse_args()
 
     if not args.command:
@@ -630,7 +674,15 @@ def main():
 
             elif args.vendor and args.product and args.quote is not None:
                 # Add quote
-                add_quote(session, args.vendor, args.product, args.quote, args.brand)
+                add_quote(
+                    session,
+                    args.vendor,
+                    args.product,
+                    args.quote,
+                    args.brand,
+                    getattr(args, 'shipping', None),
+                    getattr(args, 'tax_rate', None),
+                )
 
             else:
                 print("Invalid combination of arguments for 'add' command")
@@ -659,6 +711,104 @@ def main():
 
         elif args.command == "seed":
             seed_database(session)
+
+        elif args.command == "alert":
+            from .services import PriceAlertService, NotFoundError, ValidationError
+
+            if args.alert_command == "add":
+                try:
+                    alert = PriceAlertService.create(session, args.product, args.threshold)
+                    print(f"Created alert #{alert.id} for '{args.product}' at ${args.threshold:.2f}")
+                except NotFoundError as e:
+                    print(f"Error: {e}")
+                except ValidationError as e:
+                    print(f"Error: {e}")
+
+            elif args.alert_command == "list":
+                if args.triggered:
+                    alerts = PriceAlertService.get_triggered(session)
+                    if not alerts:
+                        print("No triggered alerts")
+                        return
+                    headers = ["ID", "Product", "Threshold", "Triggered At"]
+                    data = [
+                        [a.id, a.product.name, f"${a.threshold_value:.2f}", str(a.triggered_at)]
+                        for a in alerts
+                    ]
+                else:
+                    alerts = PriceAlertService.get_all(session)
+                    if not alerts:
+                        print("No alerts")
+                        return
+                    headers = ["ID", "Product", "Threshold", "Status", "Triggered At"]
+                    data = [
+                        [
+                            a.id,
+                            a.product.name,
+                            f"${a.threshold_value:.2f}",
+                            "Active" if a.active else "Inactive",
+                            str(a.triggered_at) if a.triggered_at else "-",
+                        ]
+                        for a in alerts
+                    ]
+                print(tabulate(data, headers=headers, tablefmt="grid"))
+
+            elif args.alert_command == "deactivate":
+                try:
+                    alert = PriceAlertService.deactivate(session, args.id)
+                    print(f"Deactivated alert #{alert.id}")
+                except NotFoundError as e:
+                    print(f"Error: {e}")
+
+            else:
+                print("Usage: buyer alert [add|list|deactivate]")
+
+        elif args.command == "history":
+            from .services import QuoteHistoryService, QuoteService
+
+            if args.quote_id:
+                history = QuoteHistoryService.get_history(session, args.quote_id)
+                if not history:
+                    print(f"No history for quote #{args.quote_id}")
+                    return
+                headers = ["Date", "Old Price", "New Price", "Type"]
+                data = [
+                    [
+                        str(h.changed_at),
+                        f"${h.old_value:.2f}" if h.old_value else "-",
+                        f"${h.new_value:.2f}",
+                        h.change_type,
+                    ]
+                    for h in history
+                ]
+                print(f"Price history for Quote #{args.quote_id}:")
+                print(tabulate(data, headers=headers, tablefmt="grid"))
+
+            elif args.product:
+                product = Product.by_name(session, args.product)
+                if not product:
+                    print(f"Product '{args.product}' not found")
+                    return
+                history = QuoteHistoryService.get_product_history(session, product.id)
+                if not history:
+                    print(f"No history for product '{args.product}'")
+                    return
+                headers = ["Date", "Quote ID", "Old Price", "New Price", "Type"]
+                data = [
+                    [
+                        str(h.changed_at),
+                        h.quote_id,
+                        f"${h.old_value:.2f}" if h.old_value else "-",
+                        f"${h.new_value:.2f}",
+                        h.change_type,
+                    ]
+                    for h in history
+                ]
+                print(f"Price history for '{args.product}':")
+                print(tabulate(data, headers=headers, tablefmt="grid"))
+
+            else:
+                print("Usage: buyer history [--product NAME | --quote-id ID]")
 
     except IntegrityError as e:
         session.rollback()
