@@ -2,8 +2,6 @@
 """model.py: models a purchasing support tool"""
 
 import datetime
-from contextlib import contextmanager
-from pathlib import Path
 from typing import List
 
 from sqlalchemy import (
@@ -17,9 +15,8 @@ from sqlalchemy import (
     Table,
     create_engine,
 )
-from sqlalchemy import exc
 from sqlalchemy import select
-from sqlalchemy.ext.declarative import declarative_base, declared_attr
+from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.orm import relationship, sessionmaker, mapped_column
 from sqlalchemy.orm import DeclarativeBase, Mapped
 from sqlalchemy.sql import func
@@ -53,13 +50,15 @@ class Forex(Base):
     """Table of forex rates - tracks currency exchange rates over time"""
 
     __tablename__ = "forex"
-    __table_args__ = (
-        {"sqlite_autoincrement": True},
-    )
+    __table_args__ = ({"sqlite_autoincrement": True},)
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    date: Mapped[datetime.date] = mapped_column(Date, default=func.current_date(), index=True)
-    code: Mapped[str] = mapped_column(String(3), index=True)  # ISO 4217 currency codes are 3 chars
+    date: Mapped[datetime.date] = mapped_column(
+        Date, default=func.current_date(), index=True
+    )
+    code: Mapped[str] = mapped_column(
+        String(3), index=True
+    )  # ISO 4217 currency codes are 3 chars
     usd_per_unit: Mapped[float] = mapped_column(Float)
 
     def __repr__(self):
@@ -86,6 +85,7 @@ class Vendor(Object, Base):
     currency: Mapped[str] = mapped_column(String)
     discount_code: Mapped[str | None] = mapped_column(String)
     discount: Mapped[float] = mapped_column(Float, default=0.0)
+    url: Mapped[str | None] = mapped_column(String, nullable=True)
     brands: Mapped[List["Brand"]] = relationship(
         secondary=VendorBrand, back_populates="vendors"
     )
@@ -133,7 +133,15 @@ class Product(Object, Base):
 
     brand_id: Mapped[int] = mapped_column(Integer, ForeignKey("brand.id"))
     brand: Mapped["Brand"] = relationship("Brand", back_populates="products")
+    category: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
     quotes: Mapped[List["Quote"]] = relationship("Quote", back_populates="product")
+
+
+# Quote status constants
+QUOTE_STATUS_CONSIDERING = "considering"
+QUOTE_STATUS_ORDERED = "ordered"
+QUOTE_STATUS_RECEIVED = "received"
+QUOTE_STATUSES = [QUOTE_STATUS_CONSIDERING, QUOTE_STATUS_ORDERED, QUOTE_STATUS_RECEIVED]
 
 
 class Quote(Base):
@@ -154,6 +162,8 @@ class Quote(Base):
     shipping_cost: Mapped[float | None] = mapped_column(Float, nullable=True)
     tax_rate: Mapped[float | None] = mapped_column(Float, nullable=True)
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime, default=func.now())
+    status: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+    receipt_path: Mapped[str | None] = mapped_column(String, nullable=True)
 
     @property
     def total_cost(self) -> float:
@@ -178,7 +188,9 @@ class QuoteHistory(Base):
     old_value: Mapped[float | None] = mapped_column(Float, nullable=True)
     new_value: Mapped[float] = mapped_column(Float)
     changed_at: Mapped[datetime.datetime] = mapped_column(DateTime, default=func.now())
-    change_type: Mapped[str] = mapped_column(String, default="update")  # "create" or "update"
+    change_type: Mapped[str] = mapped_column(
+        String, default="update"
+    )  # "create" or "update"
 
     def __repr__(self):
         return f"<QuoteHistory(quote_id={self.quote_id}, {self.old_value} -> {self.new_value})>"
@@ -196,11 +208,122 @@ class PriceAlert(Base):
     threshold_currency: Mapped[str] = mapped_column(String, default="USD")
     active: Mapped[int] = mapped_column(Integer, default=1)  # SQLite bool
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime, default=func.now())
-    triggered_at: Mapped[datetime.datetime | None] = mapped_column(DateTime, nullable=True)
+    triggered_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime, nullable=True
+    )
 
     def __repr__(self):
         status = "active" if self.active else "inactive"
         return f"<PriceAlert(product_id={self.product_id}, threshold={self.threshold_value}, {status})>"
+
+
+# Junction table for PurchaseList to Quote many-to-many
+PurchaseListQuote = Table(
+    "purchase_list_quote",
+    Base.metadata,
+    Column("purchase_list_id", ForeignKey("purchase_list.id"), primary_key=True),
+    Column("quote_id", ForeignKey("quote.id"), primary_key=True),
+)
+
+
+class PurchaseList(Base):
+    """Named shopping list grouping quotes"""
+
+    __tablename__ = "purchase_list"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String, unique=True)
+    description: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime, default=func.now())
+    quotes: Mapped[List["Quote"]] = relationship(
+        "Quote", secondary=PurchaseListQuote, backref="purchase_lists"
+    )
+
+    @classmethod
+    def by_name(cls, session, name):
+        """Query by name"""
+        stmt = select(cls).where(cls.name == name)
+        return session.execute(stmt).scalar_one_or_none()
+
+    @property
+    def total_value(self) -> float:
+        """Calculate total value of all quotes in list"""
+        return sum(q.total_cost for q in self.quotes)
+
+    def __repr__(self):
+        return f"<PurchaseList(name='{self.name}', quotes={len(self.quotes)})>"
+
+
+class Note(Base):
+    """Freeform notes attachable to any entity"""
+
+    __tablename__ = "note"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    entity_type: Mapped[str] = mapped_column(
+        String, index=True
+    )  # 'product', 'vendor', 'quote', etc.
+    entity_id: Mapped[int] = mapped_column(Integer, index=True)
+    content: Mapped[str] = mapped_column(String)
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime, default=func.now())
+    updated_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime, nullable=True
+    )
+
+    def __repr__(self):
+        preview = self.content[:30] + "..." if len(self.content) > 30 else self.content
+        return f"<Note({self.entity_type}:{self.entity_id}, '{preview}')>"
+
+
+class Tag(Base):
+    """Tags for categorizing entities"""
+
+    __tablename__ = "tag"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String, unique=True, index=True)
+    color: Mapped[str | None] = mapped_column(String, nullable=True)  # hex color for UI
+
+    @classmethod
+    def by_name(cls, session, name):
+        """Query by name"""
+        stmt = select(cls).where(cls.name == name)
+        return session.execute(stmt).scalar_one_or_none()
+
+    def __repr__(self):
+        return f"<Tag(name='{self.name}')>"
+
+
+class EntityTag(Base):
+    """Junction table for tagging any entity"""
+
+    __tablename__ = "entity_tag"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    tag_id: Mapped[int] = mapped_column(ForeignKey("tag.id"), index=True)
+    tag: Mapped["Tag"] = relationship("Tag")
+    entity_type: Mapped[str] = mapped_column(String, index=True)
+    entity_id: Mapped[int] = mapped_column(Integer, index=True)
+
+    def __repr__(self):
+        return f"<EntityTag(tag={self.tag.name}, {self.entity_type}:{self.entity_id})>"
+
+
+class Watchlist(Base):
+    """Watchlist for monitoring products"""
+
+    __tablename__ = "watchlist"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    product_id: Mapped[int] = mapped_column(ForeignKey("product.id"), index=True)
+    product: Mapped["Product"] = relationship("Product")
+    target_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    notes: Mapped[str | None] = mapped_column(String, nullable=True)
+    active: Mapped[int] = mapped_column(Integer, default=1)
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime, default=func.now())
+
+    def __repr__(self):
+        return f"<Watchlist(product={self.product.name}, target=${self.target_price})>"
 
 
 if __name__ == "__main__":

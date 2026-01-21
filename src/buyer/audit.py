@@ -12,14 +12,13 @@ This module provides comprehensive audit logging for:
 import datetime
 import logging
 from enum import Enum
-from typing import Optional, Dict, Any
+from typing import Optional
 from pathlib import Path
 
 from sqlalchemy import Column, Integer, String, DateTime, Text
 from sqlalchemy.orm import Session
 
 from .models import Base
-from .config import Config
 
 # Setup audit logger (separate from application logger)
 audit_logger = logging.getLogger("buyer.audit")
@@ -69,7 +68,9 @@ class AuditLog(Base):
     __tablename__ = "audit_log"
 
     id = Column(Integer, primary_key=True)
-    timestamp = Column(DateTime, default=datetime.datetime.utcnow, nullable=False, index=True)
+    timestamp = Column(
+        DateTime, default=datetime.datetime.utcnow, nullable=False, index=True
+    )
     action = Column(String(50), nullable=False, index=True)
     entity_type = Column(String(50), nullable=True, index=True)
     entity_id = Column(Integer, nullable=True)
@@ -297,9 +298,7 @@ class AuditService:
         return query.limit(limit).all()
 
     @staticmethod
-    def get_entity_history(
-        session: Session, entity_type: str, entity_id: int
-    ) -> list:
+    def get_entity_history(session: Session, entity_type: str, entity_id: int) -> list:
         """
         Get complete audit history for a specific entity.
 

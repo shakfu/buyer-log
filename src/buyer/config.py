@@ -20,7 +20,9 @@ class Config:
 
     # Logging configuration
     LOG_LEVEL = os.getenv("BUYER_LOG_LEVEL", "INFO")
-    LOG_PATH = Path(os.getenv("BUYER_LOG_PATH", str(Path.home() / ".buyer" / "buyer.log")))
+    LOG_PATH = Path(
+        os.getenv("BUYER_LOG_PATH", str(Path.home() / ".buyer" / "buyer.log"))
+    )
 
     # Ensure database directory exists
     @classmethod
@@ -41,6 +43,11 @@ class Config:
         """Get SQLAlchemy session maker"""
         engine = cls.get_engine()
         return sessionmaker(bind=engine)
+
+    @classmethod
+    def get_db_path(cls) -> Path:
+        """Get the database file path"""
+        return cls.DB_PATH
 
     @classmethod
     def setup_logging(cls):

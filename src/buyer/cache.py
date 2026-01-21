@@ -64,7 +64,7 @@ class SimpleCache:
         """
         self.max_size = max_size
         self.default_ttl = default_ttl
-        self._cache = OrderedDict()
+        self._cache: OrderedDict[str, CacheEntry] = OrderedDict()
         self._hits = 0
         self._misses = 0
 
@@ -171,9 +171,7 @@ class SimpleCache:
         Returns:
             Number of entries removed
         """
-        expired_keys = [
-            key for key, entry in self._cache.items() if entry.is_expired()
-        ]
+        expired_keys = [key for key, entry in self._cache.items() if entry.is_expired()]
         for key in expired_keys:
             del self._cache[key]
 
@@ -214,7 +212,9 @@ def cached(ttl: int = 300, key_prefix: str = ""):
             cache_key = f"{key_prefix}:{func.__name__}:"
             cache_key += ":".join(str(arg) for arg in args)
             if kwargs:
-                cache_key += ":" + ":".join(f"{k}={v}" for k, v in sorted(kwargs.items()))
+                cache_key += ":" + ":".join(
+                    f"{k}={v}" for k, v in sorted(kwargs.items())
+                )
 
             # Try to get from cache
             cache = get_cache()
@@ -249,6 +249,8 @@ def invalidate_cache_pattern(pattern: str) -> int:
         cache.delete(key)
 
     if keys_to_delete:
-        logger.info(f"Invalidated {len(keys_to_delete)} cache entries matching '{pattern}'")
+        logger.info(
+            f"Invalidated {len(keys_to_delete)} cache entries matching '{pattern}'"
+        )
 
     return len(keys_to_delete)

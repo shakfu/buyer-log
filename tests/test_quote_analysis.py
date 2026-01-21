@@ -9,10 +9,11 @@ from buyer.services import (
     QuoteService,
     QuoteHistoryService,
     PriceAlertService,
+    ComparisonService,
     ValidationError,
     NotFoundError,
 )
-from buyer.models import Quote, QuoteHistory, PriceAlert
+from buyer.models import Quote, QuoteHistory, PriceAlert, Product
 
 
 # Quote total_cost property tests
@@ -400,3 +401,144 @@ class TestQuoteServiceExtensions:
 
         with pytest.raises(ValidationError, match="cannot be negative"):
             QuoteService.update_price(dbsession, quote.id, -100.0)
+
+
+# ComparisonService tests
+class TestComparisonService:
+    """Tests for ComparisonService"""
+
+    def test_compare_product(self, dbsession):
+        """Compare prices for a specific product"""
+        VendorService.create(dbsession, "Amazon", currency="USD")
+        VendorService.create(dbsession, "BestBuy", currency="USD")
+        VendorService.create(dbsession, "B&H", currency="USD")
+        ProductService.create(dbsession, "iPhone 15", "Apple")
+
+        QuoteService.create(dbsession, "Amazon", "iPhone 15", 999.0)
+        QuoteService.create(dbsession, "BestBuy", "iPhone 15", 1049.0)
+        QuoteService.create(dbsession, "B&H", "iPhone 15", 949.0)
+
+        result = ComparisonService.compare_product(dbsession, "iPhone 15")
+
+        assert result["product"].name == "iPhone 15"
+        assert len(result["quotes"]) == 3
+        assert result["best_price"] == 949.0
+        assert result["worst_price"] == 1049.0
+        assert result["savings"] == 100.0
+        assert result["num_vendors"] == 3
+
+    def test_compare_product_not_found(self, dbsession):
+        """Compare non-existent product raises error"""
+        with pytest.raises(NotFoundError, match="not found"):
+            ComparisonService.compare_product(dbsession, "NonExistent")
+
+    def test_compare_product_no_quotes(self, dbsession):
+        """Compare product with no quotes"""
+        ProductService.create(dbsession, "iPhone 15", "Apple")
+
+        result = ComparisonService.compare_product(dbsession, "iPhone 15")
+
+        assert result["quotes"] == []
+        assert result["best_price"] is None
+
+    def test_compare_by_search(self, dbsession):
+        """Compare products by search term"""
+        VendorService.create(dbsession, "Amazon", currency="USD")
+        ProductService.create(dbsession, "iPhone 15", "Apple")
+        ProductService.create(dbsession, "iPhone 14", "Apple")
+        ProductService.create(dbsession, "Galaxy S24", "Samsung")
+
+        QuoteService.create(dbsession, "Amazon", "iPhone 15", 999.0)
+        QuoteService.create(dbsession, "Amazon", "iPhone 14", 799.0)
+        QuoteService.create(dbsession, "Amazon", "Galaxy S24", 899.0)
+
+        result = ComparisonService.compare_by_search(dbsession, "iPhone")
+
+        assert result["search_term"] == "iPhone"
+        assert result["total_products"] == 2
+        # Should be sorted by best price
+        assert result["products"][0]["product"].name == "iPhone 14"
+
+    def test_compare_by_search_not_found(self, dbsession):
+        """Compare by search with no matches raises error"""
+        with pytest.raises(NotFoundError, match="No products found"):
+            ComparisonService.compare_by_search(dbsession, "NonExistent")
+
+    def test_compare_by_category(self, dbsession):
+        """Compare products by category"""
+        VendorService.create(dbsession, "Amazon", currency="USD")
+
+        # Create products with categories
+        product1 = ProductService.create(dbsession, "iPhone 15", "Apple")
+        product1.category = "Mobile Phones"
+        product2 = ProductService.create(dbsession, "Galaxy S24", "Samsung")
+        product2.category = "Mobile Phones"
+        product3 = ProductService.create(dbsession, "MacBook", "Apple")
+        product3.category = "Laptops"
+        dbsession.commit()
+
+        QuoteService.create(dbsession, "Amazon", "iPhone 15", 999.0)
+        QuoteService.create(dbsession, "Amazon", "Galaxy S24", 899.0)
+        QuoteService.create(dbsession, "Amazon", "MacBook", 1299.0)
+
+        result = ComparisonService.compare_by_category(dbsession, "Mobile Phones")
+
+        assert result["category"] == "Mobile Phones"
+        assert result["total_products"] == 2
+
+    def test_compare_by_category_not_found(self, dbsession):
+        """Compare by category with no matches raises error"""
+        with pytest.raises(NotFoundError, match="No products found"):
+            ComparisonService.compare_by_category(dbsession, "NonExistent")
+
+    def test_compare_by_brand(self, dbsession):
+        """Compare products by brand"""
+        VendorService.create(dbsession, "Amazon", currency="USD")
+        ProductService.create(dbsession, "iPhone 15", "Apple")
+        ProductService.create(dbsession, "MacBook", "Apple")
+        ProductService.create(dbsession, "Galaxy S24", "Samsung")
+
+        QuoteService.create(dbsession, "Amazon", "iPhone 15", 999.0)
+        QuoteService.create(dbsession, "Amazon", "MacBook", 1299.0)
+        QuoteService.create(dbsession, "Amazon", "Galaxy S24", 899.0)
+
+        result = ComparisonService.compare_by_brand(dbsession, "Apple")
+
+        assert result["brand"].name == "Apple"
+        assert result["total_products"] == 2
+
+    def test_compare_by_brand_not_found(self, dbsession):
+        """Compare by brand not found raises error"""
+        with pytest.raises(NotFoundError, match="not found"):
+            ComparisonService.compare_by_brand(dbsession, "NonExistent")
+
+    def test_get_categories(self, dbsession):
+        """Get all product categories"""
+        product1 = ProductService.create(dbsession, "iPhone 15", "Apple")
+        product1.category = "Mobile Phones"
+        product2 = ProductService.create(dbsession, "MacBook", "Apple")
+        product2.category = "Laptops"
+        product3 = ProductService.create(dbsession, "iPad", "Apple")
+        product3.category = "Tablets"
+        dbsession.commit()
+
+        categories = ComparisonService.get_categories(dbsession)
+
+        assert "Mobile Phones" in categories
+        assert "Laptops" in categories
+        assert "Tablets" in categories
+
+    def test_set_product_category(self, dbsession):
+        """Set product category"""
+        ProductService.create(dbsession, "iPhone 15", "Apple")
+
+        product = ComparisonService.set_product_category(
+            dbsession, "iPhone 15", "Mobile Phones"
+        )
+
+        assert product.category == "Mobile Phones"
+
+    def test_set_product_category_not_found(self, dbsession):
+        """Set category for non-existent product raises error"""
+        with pytest.raises(NotFoundError, match="not found"):
+            ComparisonService.set_product_category(dbsession, "NonExistent", "Category")

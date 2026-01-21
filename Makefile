@@ -1,4 +1,4 @@
-.PHONY: all web test coverage diagram clean
+.PHONY: all web test coverage diagram lint format typecheck clean
 
 all: test
 
@@ -17,6 +17,15 @@ coverage:
 diagram:
 	@echo "generating entity-relation diagram to 'doc' folder"
 	@uv run python buyer/models.py
+
+lint:
+	@uv run ruff check --fix src/
+
+typecheck:
+	@uv run mypy src/
+
+format:
+	@uv run ruff format src/
 
 clean:
 	@find . | grep -E "(__pycache__|\.pyc|\.pyo$/)" | xargs rm -rf
