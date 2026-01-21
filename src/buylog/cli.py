@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""CLI interface for buyer tool with CRUD operations"""
+"""CLI interface for buylog tool with CRUD operations"""
 
 import argparse
 from pathlib import Path
@@ -219,9 +219,7 @@ def list_entities(
     if entity_type == "brands":
         brands = BrandService.get_all(session, filter_by=filter_by, limit=limit)
         headers = ["ID", "Name", "Products"]
-        data = [
-            [b.id, b.name, ", ".join([p.name for p in b.products])] for b in brands
-        ]
+        data = [[b.id, b.name, ", ".join([p.name for p in b.products])] for b in brands]
         print(tabulate(data, headers=headers, tablefmt="grid"))
 
     elif entity_type == "products":
@@ -1234,7 +1232,7 @@ def main():
                     print(f"Error: {e}")
 
             else:
-                print("Usage: buyer alert [add|list|deactivate]")
+                print("Usage: buylog alert [add|list|deactivate]")
 
         elif args.command == "history":
             from .services import QuoteHistoryService, QuoteService
@@ -1281,7 +1279,7 @@ def main():
                 print(tabulate(data, headers=headers, tablefmt="grid"))
 
             else:
-                print("Usage: buyer history [--product NAME | --quote-id ID]")
+                print("Usage: buylog history [--product NAME | --quote-id ID]")
 
         elif args.command == "compare":
             from .services import ComparisonService, NotFoundError
@@ -1353,7 +1351,7 @@ def main():
 
                 else:
                     print(
-                        "Usage: buyer compare [--product NAME | --search TERM | --category CAT | --brand NAME]"
+                        "Usage: buylog compare [--product NAME | --search TERM | --category CAT | --brand NAME]"
                     )
 
             except NotFoundError as e:
@@ -1389,11 +1387,11 @@ def main():
                         print(f"  - {cat} ({len(count)} products)")
                 else:
                     print(
-                        "No categories defined. Use 'buyer category set <product> <category>' to add one."
+                        "No categories defined. Use 'buylog category set <product> <category>' to add one."
                     )
 
             else:
-                print("Usage: buyer category [set|list]")
+                print("Usage: buylog category [set|list]")
 
         elif args.command == "purchase-list":
             from .services import (
@@ -1486,7 +1484,7 @@ def main():
                 print(tabulate(data, headers=headers, tablefmt="grid"))
 
             else:
-                print("Usage: buyer purchase-list [create|add|remove|show|delete|all]")
+                print("Usage: buylog purchase-list [create|add|remove|show|delete|all]")
 
         elif args.command == "status":
             from .services import QuoteService, NotFoundError, ValidationError
@@ -1521,7 +1519,7 @@ def main():
                     print(f"Error: {e}")
 
             else:
-                print("Usage: buyer status [set|list]")
+                print("Usage: buylog status [set|list]")
 
         elif args.command == "note":
             from .services import NoteService, NotFoundError, ValidationError
@@ -1557,7 +1555,7 @@ def main():
                     print(f"Error: {e}")
 
             else:
-                print("Usage: buyer note [add|list|delete]")
+                print("Usage: buylog note [add|list|delete]")
 
         elif args.command == "tag":
             from .services import TagService, NotFoundError, DuplicateError
@@ -1622,7 +1620,7 @@ def main():
                     print(f"Error: {e}")
 
             else:
-                print("Usage: buyer tag [add|remove|list|search]")
+                print("Usage: buylog tag [add|remove|list|search]")
 
         elif args.command == "watchlist":
             from .services import WatchlistService, NotFoundError, DuplicateError
@@ -1683,7 +1681,7 @@ def main():
                     print(f"Error: {e}")
 
             else:
-                print("Usage: buyer watchlist [add|list|update|remove]")
+                print("Usage: buylog watchlist [add|list|update|remove]")
 
         elif args.command == "import":
             from .services import (
@@ -1731,7 +1729,7 @@ def main():
                     print(f"Error: {e}")
 
             else:
-                print("Usage: buyer import quotes <file>")
+                print("Usage: buylog import quotes <file>")
 
         elif args.command == "export":
             from .services import ExportService
@@ -1772,7 +1770,7 @@ def main():
                     print(result)
 
             else:
-                print("Usage: buyer export [quotes|products|vendors]")
+                print("Usage: buylog export [quotes|products|vendors]")
 
         elif args.command == "backup":
             from .services import BackupService
@@ -1838,7 +1836,7 @@ def main():
                         for v in group:
                             print(f"  [{v.id}] {v.name} ({v.currency})")
                     print(
-                        "\nTo merge: buyer duplicates merge-vendors <keep_id> <merge_id1> <merge_id2> ..."
+                        "\nTo merge: buylog duplicates merge-vendors <keep_id> <merge_id1> <merge_id2> ..."
                     )
 
             elif args.duplicates_command == "products":
@@ -1854,7 +1852,7 @@ def main():
                         for p in group:
                             print(f"  [{p.id}] {p.name} ({p.brand.name})")
                     print(
-                        "\nTo merge: buyer duplicates merge-products <keep_id> <merge_id1> <merge_id2> ..."
+                        "\nTo merge: buylog duplicates merge-products <keep_id> <merge_id1> <merge_id2> ..."
                     )
 
             elif args.duplicates_command == "merge-vendors":
@@ -1877,7 +1875,7 @@ def main():
 
             else:
                 print(
-                    "Usage: buyer duplicates [vendors|products|merge-vendors|merge-products]"
+                    "Usage: buylog duplicates [vendors|products|merge-vendors|merge-products]"
                 )
 
         elif args.command == "clipboard":
@@ -1908,7 +1906,7 @@ def main():
                     print(f"Error: {e}")
 
             else:
-                print("Usage: buyer clipboard [quote|product|vendor]")
+                print("Usage: buylog clipboard [quote|product|vendor]")
 
         elif args.command == "vendor-url":
             from .services import (
@@ -1940,7 +1938,7 @@ def main():
                     print(f"Error: {e}")
 
             else:
-                print("Usage: buyer vendor-url [set|open|clear]")
+                print("Usage: buylog vendor-url [set|open|clear]")
 
         elif args.command == "receipt":
             from .services import (
@@ -1995,7 +1993,7 @@ def main():
                     print(tabulate(data, headers=headers, tablefmt="grid"))
 
             else:
-                print("Usage: buyer receipt [attach|open|detach|list]")
+                print("Usage: buylog receipt [attach|open|detach|list]")
 
         elif args.command == "scrape":
             from .services import (
@@ -2036,7 +2034,7 @@ def main():
                     print(f"Error: {e}")
 
             else:
-                print("Usage: buyer scrape [url|quote]")
+                print("Usage: buylog scrape [url|quote]")
 
     except IntegrityError as e:
         session.rollback()

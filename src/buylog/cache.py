@@ -12,7 +12,7 @@ from typing import Any, Optional, Callable
 from functools import wraps
 from collections import OrderedDict
 
-logger = logging.getLogger("buyer")
+logger = logging.getLogger("buylog")
 
 
 class CacheEntry:

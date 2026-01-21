@@ -8,8 +8,8 @@ from unittest.mock import patch, MagicMock
 import pytest
 from sqlalchemy import select
 
-from buyer.models import Brand, Product, Vendor, Quote
-from buyer.services import (
+from buylog.models import Brand, Product, Vendor, Quote
+from buylog.services import (
     ClipboardService,
     VendorURLService,
     ReceiptService,

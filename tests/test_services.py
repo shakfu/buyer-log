@@ -2,7 +2,7 @@
 
 import datetime
 import pytest
-from buyer.services import (
+from buylog.services import (
     BrandService,
     ProductService,
     VendorService,
@@ -12,7 +12,7 @@ from buyer.services import (
     DuplicateError,
     NotFoundError,
 )
-from buyer.models import Brand, Product, Vendor, Quote, Forex
+from buylog.models import Brand, Product, Vendor, Quote, Forex
 
 
 # BrandService Tests

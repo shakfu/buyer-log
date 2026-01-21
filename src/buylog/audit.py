@@ -21,11 +21,11 @@ from sqlalchemy.orm import Session
 from .models import Base
 
 # Setup audit logger (separate from application logger)
-audit_logger = logging.getLogger("buyer.audit")
+audit_logger = logging.getLogger("buylog.audit")
 audit_logger.setLevel(logging.INFO)
 
 # Ensure audit log directory exists
-audit_log_path = Path.home() / ".buyer" / "audit.log"
+audit_log_path = Path.home() / ".buylog" / "audit.log"
 audit_log_path.parent.mkdir(parents=True, exist_ok=True)
 
 # File handler for audit logs (always enabled)

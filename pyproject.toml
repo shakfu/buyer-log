@@ -1,5 +1,5 @@
 [project]
-name = "buyer"
+name = "buylog"
 version = "0.1.0"
 description = "A purchasing support tool."
 readme = "README.md"
@@ -18,7 +18,7 @@ dependencies = [
 ]
 
 [project.scripts]
-buyer = "buyer:main"
+buylog = "buylog:main"
 
 [build-system]
 requires = ["uv_build>=0.7.3,<0.8"]

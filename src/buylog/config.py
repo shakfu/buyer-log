@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Configuration module for buyer application"""
+"""Configuration module for buylog application"""
 
 import os
 import logging
@@ -15,13 +15,15 @@ class Config:
     ENV = os.getenv("BUYER_ENV", "development")
 
     # Database configuration
-    DB_PATH = Path(os.getenv("BUYER_DB_PATH", str(Path.home() / ".buyer" / "buyer.db")))
+    DB_PATH = Path(
+        os.getenv("BUYER_DB_PATH", str(Path.home() / ".buylog" / "buylog.db"))
+    )
     DB_URL = f"sqlite:///{DB_PATH}"
 
     # Logging configuration
     LOG_LEVEL = os.getenv("BUYER_LOG_LEVEL", "INFO")
     LOG_PATH = Path(
-        os.getenv("BUYER_LOG_PATH", str(Path.home() / ".buyer" / "buyer.log"))
+        os.getenv("BUYER_LOG_PATH", str(Path.home() / ".buylog" / "buylog.log"))
     )
 
     # Ensure database directory exists
@@ -55,7 +57,7 @@ class Config:
         cls.ensure_db_directory()
 
         # Create logger
-        logger = logging.getLogger("buyer")
+        logger = logging.getLogger("buylog")
         logger.setLevel(getattr(logging, cls.LOG_LEVEL))
 
         # Clear existing handlers

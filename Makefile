@@ -2,21 +2,17 @@
 
 all: test
 
-
-web: 
-	@uv run python -m buyer.web
-
 test:
 	@echo "running tests"
 	@uv run pytest
 
 coverage:
 	@echo "generating test coverage report"
-	@uv run pytest --cov-report=html:cov_html --cov-report=term-missing --cov=buyer buyer/tests
+	@uv run pytest --cov-report=html:cov_html --cov-report=term-missing --cov=buylog buylog/tests
 
 diagram:
 	@echo "generating entity-relation diagram to 'doc' folder"
-	@uv run python buyer/models.py
+	@uv run python buylog/models.py
 
 lint:
 	@uv run ruff check --fix src/

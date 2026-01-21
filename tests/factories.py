@@ -5,7 +5,7 @@ import factory
 import factory.fuzzy
 
 # from . import models
-import buyer.models as models
+import buylog.models as models
 
 ALPHANUM = string.ascii_letters + string.digits
 

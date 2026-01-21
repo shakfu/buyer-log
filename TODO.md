@@ -36,7 +36,7 @@ Import, export, and maintain data integrity.
 
 - [x] **CSV/JSON import** - Bulk import quotes from spreadsheets
 - [x] **Export reports** - Export filtered views to CSV, Markdown
-- [x] **Backup/restore** - Simple database backup command (`buyer backup`, `buyer restore`)
+- [x] **Backup/restore** - Simple database backup command (`buylog backup`, `buylog restore`)
 - [x] **Merge duplicates** - Detect and merge similar vendors/products
 
 ## Priority 5: Integration
@@ -69,8 +69,8 @@ Connect with external tools and data.
 
 ### TUI
 
-- [x] **Textual TUI** - Interactive terminal interface (`buyer tui`)
-- [x] **Database seeding** - Sample data command (`buyer seed`)
+- [x] **Textual TUI** - Interactive terminal interface (`buylog tui`)
+- [x] **Database seeding** - Sample data command (`buylog seed`)
 
 ### TUI Enhancements (v0.4.0)
 
@@ -109,9 +109,9 @@ Connect with external tools and data.
 - [x] **JSON import** - Import quotes from JSON files
 - [x] **CSV export** - Export quotes, products, vendors to CSV
 - [x] **Markdown export** - Export quotes to Markdown reports with summary
-- [x] **Database backup** - Create timestamped backups (`buyer backup`)
-- [x] **Database restore** - Restore from backup (`buyer restore`)
-- [x] **Backup listing** - List available backups (`buyer backups`)
+- [x] **Database backup** - Create timestamped backups (`buylog backup`)
+- [x] **Database restore** - Restore from backup (`buylog restore`)
+- [x] **Backup listing** - List available backups (`buylog backups`)
 - [x] **Find duplicates** - Detect similar vendors/products using Jaccard similarity
 - [x] **Merge vendors** - Merge duplicate vendors, reassigning quotes
 - [x] **Merge products** - Merge duplicate products, reassigning quotes
@@ -119,10 +119,10 @@ Connect with external tools and data.
 ### Integration Features (v0.8.0)
 
 - [x] **Clipboard support** - Copy quote/product/vendor to clipboard (`y` key in TUI)
-- [x] **Vendor URL field** - Store vendor URLs with `buyer vendor-url set/open/clear`
+- [x] **Vendor URL field** - Store vendor URLs with `buylog vendor-url set/open/clear`
 - [x] **TUI URL column** - Show link indicators in vendors table
 - [x] **Open URL keybinding** - Press `o` to open vendor URL in browser
-- [x] **Receipt attachment** - Attach receipt files to quotes (`buyer receipt attach/open/detach`)
-- [x] **Receipt listing** - List quotes with receipts (`buyer receipt list`)
-- [x] **Web scraping** - Scrape prices from URLs (`buyer scrape url/quote`)
+- [x] **Receipt attachment** - Attach receipt files to quotes (`buylog receipt attach/open/detach`)
+- [x] **Receipt listing** - List quotes with receipts (`buylog receipt list`)
+- [x] **Web scraping** - Scrape prices from URLs (`buylog scrape url/quote`)
 - [x] **Auto vendor URL** - Set vendor URL from scraped page base URL

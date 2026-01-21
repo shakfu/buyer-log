@@ -3,12 +3,12 @@
 import pytest
 from sqlalchemy import select
 
-from buyer.models import (
+from buylog.models import (
     Brand, Product, Vendor, Quote,
     PurchaseList, Note, Tag, EntityTag, Watchlist,
     QUOTE_STATUS_CONSIDERING, QUOTE_STATUS_ORDERED, QUOTE_STATUS_RECEIVED,
 )
-from buyer.services import (
+from buylog.services import (
     BrandService, ProductService, VendorService, QuoteService,
     PurchaseListService, NoteService, TagService, WatchlistService,
     NotFoundError, DuplicateError, ValidationError,

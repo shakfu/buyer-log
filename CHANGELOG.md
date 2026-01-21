@@ -11,27 +11,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Integration Features** - Connect with external tools and data
 
   - **Clipboard Support** - Copy data to clipboard
-    - `buyer clipboard quote <id>` - Copy quote details to clipboard
-    - `buyer clipboard product <name>` - Copy product info to clipboard
-    - `buyer clipboard vendor <name>` - Copy vendor info (including URL) to clipboard
+    - `buylog clipboard quote <id>` - Copy quote details to clipboard
+    - `buylog clipboard product <name>` - Copy product info to clipboard
+    - `buylog clipboard vendor <name>` - Copy vendor info (including URL) to clipboard
     - TUI: Press `y` to copy selected item to clipboard
 
   - **Vendor URL Management** - Store and open vendor URLs
-    - `buyer vendor-url set <vendor> <url>` - Set vendor URL
-    - `buyer vendor-url open <vendor>` - Open vendor URL in browser
-    - `buyer vendor-url clear <vendor>` - Clear vendor URL
+    - `buylog vendor-url set <vendor> <url>` - Set vendor URL
+    - `buylog vendor-url open <vendor>` - Open vendor URL in browser
+    - `buylog vendor-url clear <vendor>` - Clear vendor URL
     - TUI: Press `o` on vendors tab to open selected vendor's URL
     - New "URL" column in vendors table showing link indicator
 
   - **Receipt Attachments** - Link receipt files to quotes
-    - `buyer receipt attach <quote_id> <file_path>` - Attach receipt to quote
-    - `buyer receipt open <quote_id>` - Open receipt file
-    - `buyer receipt detach <quote_id>` - Remove receipt from quote
-    - `buyer receipt list` - List all quotes with receipts
+    - `buylog receipt attach <quote_id> <file_path>` - Attach receipt to quote
+    - `buylog receipt open <quote_id>` - Open receipt file
+    - `buylog receipt detach <quote_id>` - Remove receipt from quote
+    - `buylog receipt list` - List all quotes with receipts
 
   - **Web Scraping** - Fetch product prices from URLs
-    - `buyer scrape url <url>` - Scrape price from URL
-    - `buyer scrape quote <url> --vendor <name> --product <name>` - Create quote from scraped URL
+    - `buylog scrape url <url>` - Scrape price from URL
+    - `buylog scrape quote <url> --vendor <name> --product <name>` - Create quote from scraped URL
     - Supports JSON-LD structured data and common price patterns
     - Auto-sets vendor URL from scraped page
 
@@ -53,29 +53,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Data Management Features** - Import, export, backup, and deduplication
 
   - **CSV/JSON Import** - Bulk import quotes from files
-    - `buyer import quotes data.csv` - Import from CSV
-    - `buyer import quotes data.json` - Import from JSON
+    - `buylog import quotes data.csv` - Import from CSV
+    - `buylog import quotes data.json` - Import from JSON
     - Auto-creates missing vendors, products, and brands
     - Use `--no-create` to require existing entities
 
   - **Export Reports** - Export data to CSV or Markdown
-    - `buyer export quotes --format csv --file quotes.csv`
-    - `buyer export quotes --format markdown --file report.md`
-    - `buyer export products --file products.csv`
-    - `buyer export vendors --file vendors.csv`
+    - `buylog export quotes --format csv --file quotes.csv`
+    - `buylog export quotes --format markdown --file report.md`
+    - `buylog export products --file products.csv`
+    - `buylog export vendors --file vendors.csv`
     - Supports `--filter` for filtered exports
 
   - **Backup/Restore** - Database backup management
-    - `buyer backup` - Create timestamped backup
-    - `buyer backup --output my-backup.db` - Custom backup path
-    - `buyer restore my-backup.db` - Restore from backup
-    - `buyer backups` - List available backups
+    - `buylog backup` - Create timestamped backup
+    - `buylog backup --output my-backup.db` - Custom backup path
+    - `buylog restore my-backup.db` - Restore from backup
+    - `buylog backups` - List available backups
 
   - **Merge Duplicates** - Detect and merge similar entities
-    - `buyer duplicates vendors` - Find similar vendors
-    - `buyer duplicates products` - Find similar products
-    - `buyer duplicates merge-vendors 1 2 3` - Merge vendors 2,3 into 1
-    - `buyer duplicates merge-products 1 2 3` - Merge products 2,3 into 1
+    - `buylog duplicates vendors` - Find similar vendors
+    - `buylog duplicates products` - Find similar products
+    - `buylog duplicates merge-vendors 1 2 3` - Merge vendors 2,3 into 1
+    - `buylog duplicates merge-products 1 2 3` - Merge products 2,3 into 1
     - Uses Jaccard similarity with configurable threshold
 
 - **New Services**
@@ -91,23 +91,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **Workflow Features** - Support the full purchasing lifecycle
   - **Purchase Lists** - Group quotes into named shopping lists
-    - Create lists: `buyer purchase-list create "My List" --description "Weekend shopping"`
-    - Add quotes: `buyer purchase-list add "My List" 123`
-    - View list: `buyer purchase-list show "My List"`
+    - Create lists: `buylog purchase-list create "My List" --description "Weekend shopping"`
+    - Add quotes: `buylog purchase-list add "My List" 123`
+    - View list: `buylog purchase-list show "My List"`
     - Total value calculation for each list
   - **Status Tracking** - Mark quotes as "considering", "ordered", "received"
-    - Set status: `buyer status set 123 ordered`
-    - List by status: `buyer status list ordered`
+    - Set status: `buylog status set 123 ordered`
+    - List by status: `buylog status list ordered`
     - Color-coded status in TUI (cyan/yellow/green)
   - **Notes** - Add freeform notes to any entity
-    - Add note: `buyer note add product 1 "Great product!"`
-    - List notes: `buyer note list product 1`
+    - Add note: `buylog note add product 1 "Great product!"`
+    - List notes: `buylog note list product 1`
   - **Tags** - Categorize entities with tags
-    - Add tag: `buyer tag add "sale" product 1`
-    - Search by tag: `buyer tag search "sale"`
+    - Add tag: `buylog tag add "sale" product 1`
+    - Search by tag: `buylog tag search "sale"`
   - **Watchlist** - Track products for price monitoring
-    - Add to watchlist: `buyer watchlist add "iPhone 15" --target-price 800`
-    - View watchlist: `buyer watchlist list`
+    - Add to watchlist: `buylog watchlist add "iPhone 15" --target-price 800`
+    - View watchlist: `buylog watchlist list`
 
 - **TUI Enhancements for Workflow**
   - New **Lists** tab for managing purchase lists (Ctrl+7)
@@ -134,10 +134,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **Price Comparison** - Compare prices across vendors for better purchasing decisions
-  - Compare by exact product name: `buyer compare --product "iPhone 15"`
-  - Compare by search term: `buyer compare --search "iPhone"` (matches all iPhone models)
-  - Compare by category: `buyer compare --category "Mobile Phones"`
-  - Compare by brand: `buyer compare --brand "Apple"`
+  - Compare by exact product name: `buylog compare --product "iPhone 15"`
+  - Compare by search term: `buylog compare --search "iPhone"` (matches all iPhone models)
+  - Compare by category: `buylog compare --category "Mobile Phones"`
+  - Compare by brand: `buylog compare --brand "Apple"`
   - Shows best/worst prices, average, and potential savings
   - CLI commands for all comparison types
 
@@ -149,8 +149,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Product Categories** - Organize products by type
   - New `category` field on Product model
-  - Set categories: `buyer category set "iPhone 15" "Mobile Phones"`
-  - List categories: `buyer category list`
+  - Set categories: `buylog category set "iPhone 15" "Mobile Phones"`
+  - List categories: `buylog category list`
   - Seed data includes categories (Mobile Phones, Laptops, Tablets, etc.)
 
 - **ComparisonService** - New service for price comparison logic
@@ -194,12 +194,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Extended `QuoteService` with `get_best_prices_by_product()` and `update_price()`
 
 - **CLI Commands**
-  - `buyer alert add <product> <threshold>` - Create price alert
-  - `buyer alert list [--triggered]` - List all or triggered alerts
-  - `buyer alert deactivate <id>` - Deactivate an alert
-  - `buyer history --product <name>` - View product price history
-  - `buyer history --quote-id <id>` - View quote price history
-  - Extended `buyer add` with `--shipping` and `--tax-rate` options
+  - `buylog alert add <product> <threshold>` - Create price alert
+  - `buylog alert list [--triggered]` - List all or triggered alerts
+  - `buylog alert deactivate <id>` - Deactivate an alert
+  - `buylog history --product <name>` - View product price history
+  - `buylog history --quote-id <id>` - View quote price history
+  - Extended `buylog add` with `--shipping` and `--tax-rate` options
 
 - **TUI Enhancements**
   - New **Alerts tab** for managing price alerts
@@ -220,14 +220,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.2.0] - 2026-01-21
 
 ### Added
-- **Textual TUI** - Interactive terminal user interface (`buyer tui`)
+- **Textual TUI** - Interactive terminal user interface (`buylog tui`)
   - Tabbed interface for Brands, Products, Vendors, Quotes, and Forex
   - DataTables with row selection and keyboard navigation
   - Modal forms for adding new entities
   - Delete confirmation dialogs
   - Search/filter functionality across all tables
   - Keyboard shortcuts (q=quit, a=add, d=delete, r=refresh, s=search)
-- **Database seeding** - `buyer seed` command to populate sample data
+- **Database seeding** - `buylog seed` command to populate sample data
   - 10 sample brands (Apple, Samsung, Sony, etc.)
   - 14 sample products
   - 9 sample vendors with various currencies

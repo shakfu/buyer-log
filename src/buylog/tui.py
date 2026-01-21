@@ -1,4 +1,4 @@
-"""Textual TUI interface for buyer tool"""
+"""Textual TUI interface for buylog tool"""
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
@@ -586,7 +586,9 @@ class CompareModal(ModalScreen[None]):
                 if select_value == Select.BLANK or not select_value:
                     results_widget.update("[yellow]Please select a product[/yellow]")
                     return
-                result = ComparisonService.compare_product(self.db_session, str(select_value))
+                result = ComparisonService.compare_product(
+                    self.db_session, str(select_value)
+                )
                 output = self._format_single_comparison(result)
 
             elif compare_type == "search":
@@ -594,7 +596,9 @@ class CompareModal(ModalScreen[None]):
                 if not search_value:
                     results_widget.update("[yellow]Please enter a search term[/yellow]")
                     return
-                result = ComparisonService.compare_by_search(self.db_session, search_value)
+                result = ComparisonService.compare_by_search(
+                    self.db_session, search_value
+                )
                 output = self._format_multi_comparison(
                     result["products"], f"Search: {search_value}"
                 )
@@ -604,7 +608,9 @@ class CompareModal(ModalScreen[None]):
                 if select_value == Select.BLANK or not select_value:
                     results_widget.update("[yellow]Please select a category[/yellow]")
                     return
-                result = ComparisonService.compare_by_category(self.db_session, str(select_value))
+                result = ComparisonService.compare_by_category(
+                    self.db_session, str(select_value)
+                )
                 output = self._format_multi_comparison(
                     result["products"], f"Category: {select_value}"
                 )
@@ -614,7 +620,9 @@ class CompareModal(ModalScreen[None]):
                 if select_value == Select.BLANK or not select_value:
                     results_widget.update("[yellow]Please select a brand[/yellow]")
                     return
-                result = ComparisonService.compare_by_brand(self.db_session, str(select_value))
+                result = ComparisonService.compare_by_brand(
+                    self.db_session, str(select_value)
+                )
                 output = self._format_multi_comparison(
                     result["products"], f"Brand: {select_value}"
                 )
@@ -1037,7 +1045,9 @@ class BuyerApp(App):
             if self.sort_column_index < len(sort_keys):
                 sort_key = sort_keys[self.sort_column_index]
 
-                def sort_fn(r: dict[str, object], k: str = sort_key) -> tuple[bool, object]:
+                def sort_fn(
+                    r: dict[str, object], k: str = sort_key
+                ) -> tuple[bool, object]:
                     return (r.get(k) is None, r.get(k, ""))
 
                 rows.sort(key=sort_fn, reverse=self.sort_reverse)
@@ -1210,7 +1220,9 @@ class BuyerApp(App):
                 self.session.rollback()
                 self.notify(str(e), severity="error")
 
-    def _on_vendor_added(self, result: tuple[str, str, str | None, float] | None) -> None:
+    def _on_vendor_added(
+        self, result: tuple[str, str, str | None, float] | None
+    ) -> None:
         if result:
             name, currency, discount_code, discount = result
             try:
@@ -1233,7 +1245,9 @@ class BuyerApp(App):
                 self.session.rollback()
                 self.notify(str(e), severity="error")
 
-    def _on_quote_added(self, result: tuple[str, str, str | None, float] | None) -> None:
+    def _on_quote_added(
+        self, result: tuple[str, str, str | None, float] | None
+    ) -> None:
         if result:
             vendor_name, product_name, brand_name, price = result
             try:
@@ -1359,9 +1373,7 @@ class BuyerApp(App):
         if result:
             product_name, target_price, notes = result
             try:
-                WatchlistService.create(
-                    self.session, product_name, target_price, notes
-                )
+                WatchlistService.create(self.session, product_name, target_price, notes)
                 self.notify(f"Added '{product_name}' to watchlist")
                 self._refresh_watchlist()
             except NotFoundError as e:

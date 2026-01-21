@@ -1,4 +1,4 @@
-# buyer-log
+# buylog
 
 A Python tool for purchasing support and vendor quote management with CLI and TUI interfaces.
 
@@ -17,8 +17,8 @@ A Python tool for purchasing support and vendor quote management with CLI and TU
 
 ```bash
 # Clone the repository
-git clone <repo-url>
-cd buyer-log
+git clone https://github.com/shakfu/buylog
+cd buylog
 
 # Install dependencies
 uv sync
@@ -35,141 +35,141 @@ The CLI supports comprehensive CRUD operations:
 
 ```sh
 # Add entities
-buyer add --brand apple
-buyer add --brand apple --product iphone-14
-buyer add --vendor amazon.com --currency USD
-buyer add --vendor amazon.com --product iphone-14 --quote 600
+buylog add --brand apple
+buylog add --brand apple --product iphone-14
+buylog add --vendor amazon.com --currency USD
+buylog add --vendor amazon.com --product iphone-14 --quote 600
 
 # Add forex rates
-buyer add-fx --code EUR --usd-per-unit 1.085
-buyer add-fx --code GBP --usd-per-unit 1.27 --date 2025-01-15
+buylog add-fx --code EUR --usd-per-unit 1.085
+buylog add-fx --code GBP --usd-per-unit 1.27 --date 2025-01-15
 
 # Add quotes with shipping and tax
-buyer add --vendor amazon.com --product iphone-14 --quote 600 --shipping 10.00 --tax-rate 8.5
+buylog add --vendor amazon.com --product iphone-14 --quote 600 --shipping 10.00 --tax-rate 8.5
 
 # List entities
-buyer list brands
-buyer list products
-buyer list vendors
-buyer list quotes
-buyer list brands --filter apple
+buylog list brands
+buylog list products
+buylog list vendors
+buylog list quotes
+buylog list brands --filter apple
 
 # Search across entities
-buyer search iphone
+buylog search iphone
 
 # Update entities
-buyer update brand apple --new-name Apple
-buyer update product iphone-14 --new-name "iPhone 14"
+buylog update brand apple --new-name Apple
+buylog update product iphone-14 --new-name "iPhone 14"
 
 # Delete entities
-buyer delete brand --name apple
-buyer delete product --name iphone-14
-buyer delete vendor --name amazon.com
-buyer delete quote --id 1
+buylog delete brand --name apple
+buylog delete product --name iphone-14
+buylog delete vendor --name amazon.com
+buylog delete quote --id 1
 
 # Seed database with sample data
-buyer seed
+buylog seed
 
 # Price alerts
-buyer alert add "iPhone 15 Pro" 900      # Create alert when price drops to $900
-buyer alert list                          # List all alerts
-buyer alert list --triggered              # List triggered alerts only
-buyer alert deactivate 1                  # Deactivate alert by ID
+buylog alert add "iPhone 15 Pro" 900      # Create alert when price drops to $900
+buylog alert list                          # List all alerts
+buylog alert list --triggered              # List triggered alerts only
+buylog alert deactivate 1                  # Deactivate alert by ID
 
 # Price history
-buyer history --product "iPhone 15 Pro"   # View price history for a product
-buyer history --quote-id 1                # View price history for a specific quote
+buylog history --product "iPhone 15 Pro"   # View price history for a product
+buylog history --quote-id 1                # View price history for a specific quote
 
 # Price comparison
-buyer compare --product "iPhone 15 Pro"   # Compare prices for a specific product
-buyer compare --search "iPhone"           # Compare all products matching search term
-buyer compare --category "Mobile Phones"  # Compare all products in a category
-buyer compare --brand "Apple"             # Compare all products from a brand
+buylog compare --product "iPhone 15 Pro"   # Compare prices for a specific product
+buylog compare --search "iPhone"           # Compare all products matching search term
+buylog compare --category "Mobile Phones"  # Compare all products in a category
+buylog compare --brand "Apple"             # Compare all products from a brand
 
 # Product categories
-buyer category set "iPhone 15 Pro" "Mobile Phones"  # Set product category
-buyer category list                                  # List all categories
+buylog category set "iPhone 15 Pro" "Mobile Phones"  # Set product category
+buylog category list                                  # List all categories
 
 # Purchase lists
-buyer purchase-list create "My List" --description "Weekend shopping"
-buyer purchase-list add "My List" 123               # Add quote to list
-buyer purchase-list remove "My List" 123            # Remove quote from list
-buyer purchase-list show "My List"                  # Show list contents
-buyer purchase-list all                             # List all purchase lists
-buyer purchase-list delete "My List"                # Delete a list
+buylog purchase-list create "My List" --description "Weekend shopping"
+buylog purchase-list add "My List" 123               # Add quote to list
+buylog purchase-list remove "My List" 123            # Remove quote from list
+buylog purchase-list show "My List"                  # Show list contents
+buylog purchase-list all                             # List all purchase lists
+buylog purchase-list delete "My List"                # Delete a list
 
 # Quote status tracking
-buyer status set 123 considering                    # Set quote status
-buyer status set 123 ordered                        # Mark as ordered
-buyer status set 123 received                       # Mark as received
-buyer status list ordered                           # List quotes by status
+buylog status set 123 considering                    # Set quote status
+buylog status set 123 ordered                        # Mark as ordered
+buylog status set 123 received                       # Mark as received
+buylog status list ordered                           # List quotes by status
 
 # Notes
-buyer note add product 1 "Great product!"           # Add note to product
-buyer note add vendor 1 "Fast shipping"             # Add note to vendor
-buyer note list product 1                           # List notes for product
-buyer note delete 1                                 # Delete note by ID
+buylog note add product 1 "Great product!"           # Add note to product
+buylog note add vendor 1 "Fast shipping"             # Add note to vendor
+buylog note list product 1                           # List notes for product
+buylog note delete 1                                 # Delete note by ID
 
 # Tags
-buyer tag add "sale" product 1                      # Tag a product
-buyer tag add "priority" quote 123                  # Tag a quote
-buyer tag remove "sale" product 1                   # Remove tag
-buyer tag list                                      # List all tags
-buyer tag list --entity-type product --entity-id 1  # List tags for entity
-buyer tag search "sale"                             # Find entities by tag
+buylog tag add "sale" product 1                      # Tag a product
+buylog tag add "priority" quote 123                  # Tag a quote
+buylog tag remove "sale" product 1                   # Remove tag
+buylog tag list                                      # List all tags
+buylog tag list --entity-type product --entity-id 1  # List tags for entity
+buylog tag search "sale"                             # Find entities by tag
 
 # Watchlist
-buyer watchlist add "iPhone 15" --target-price 800  # Add to watchlist
-buyer watchlist list                                # List active watchlist
-buyer watchlist list --all                          # Include inactive items
-buyer watchlist update 1 --target-price 750         # Update target price
-buyer watchlist remove 1                            # Remove from watchlist
+buylog watchlist add "iPhone 15" --target-price 800  # Add to watchlist
+buylog watchlist list                                # List active watchlist
+buylog watchlist list --all                          # Include inactive items
+buylog watchlist update 1 --target-price 750         # Update target price
+buylog watchlist remove 1                            # Remove from watchlist
 
 # Import data
-buyer import quotes data.csv                        # Import quotes from CSV
-buyer import quotes data.json                       # Import quotes from JSON
-buyer import quotes data.csv --no-create            # Don't create missing entities
+buylog import quotes data.csv                        # Import quotes from CSV
+buylog import quotes data.json                       # Import quotes from JSON
+buylog import quotes data.csv --no-create            # Don't create missing entities
 
 # Export data
-buyer export quotes --format csv --file quotes.csv   # Export to CSV
-buyer export quotes --format markdown --file report.md  # Export to Markdown
-buyer export quotes --filter "iPhone"               # Export filtered quotes
-buyer export products --file products.csv           # Export products
-buyer export vendors --file vendors.csv             # Export vendors
+buylog export quotes --format csv --file quotes.csv   # Export to CSV
+buylog export quotes --format markdown --file report.md  # Export to Markdown
+buylog export quotes --filter "iPhone"               # Export filtered quotes
+buylog export products --file products.csv           # Export products
+buylog export vendors --file vendors.csv             # Export vendors
 
 # Backup and restore
-buyer backup                                        # Create timestamped backup
-buyer backup --output my-backup.db                  # Custom backup path
-buyer restore my-backup.db                          # Restore from backup
-buyer restore my-backup.db --no-backup              # Restore without backing up current
-buyer backups                                       # List available backups
+buylog backup                                        # Create timestamped backup
+buylog backup --output my-backup.db                  # Custom backup path
+buylog restore my-backup.db                          # Restore from backup
+buylog restore my-backup.db --no-backup              # Restore without backing up current
+buylog backups                                       # List available backups
 
 # Find and merge duplicates
-buyer duplicates vendors                            # Find similar vendors
-buyer duplicates vendors --threshold 0.7            # Custom similarity threshold
-buyer duplicates products                           # Find similar products
-buyer duplicates merge-vendors 1 2 3                # Merge vendors 2,3 into vendor 1
-buyer duplicates merge-products 1 2 3               # Merge products 2,3 into product 1
+buylog duplicates vendors                            # Find similar vendors
+buylog duplicates vendors --threshold 0.7            # Custom similarity threshold
+buylog duplicates products                           # Find similar products
+buylog duplicates merge-vendors 1 2 3                # Merge vendors 2,3 into vendor 1
+buylog duplicates merge-products 1 2 3               # Merge products 2,3 into product 1
 
 # Clipboard support
-buyer clipboard quote 123                           # Copy quote to clipboard
-buyer clipboard product "iPhone 15 Pro"             # Copy product to clipboard
-buyer clipboard vendor "Amazon US"                  # Copy vendor to clipboard
+buylog clipboard quote 123                           # Copy quote to clipboard
+buylog clipboard product "iPhone 15 Pro"             # Copy product to clipboard
+buylog clipboard vendor "Amazon US"                  # Copy vendor to clipboard
 
 # Vendor URL management
-buyer vendor-url set "Amazon US" "https://amazon.com"  # Set vendor URL
-buyer vendor-url open "Amazon US"                   # Open vendor URL in browser
-buyer vendor-url clear "Amazon US"                  # Clear vendor URL
+buylog vendor-url set "Amazon US" "https://amazon.com"  # Set vendor URL
+buylog vendor-url open "Amazon US"                   # Open vendor URL in browser
+buylog vendor-url clear "Amazon US"                  # Clear vendor URL
 
 # Receipt attachments
-buyer receipt attach 123 receipt.pdf                # Attach receipt to quote
-buyer receipt open 123                              # Open attached receipt
-buyer receipt detach 123                            # Remove receipt from quote
-buyer receipt list                                  # List quotes with receipts
+buylog receipt attach 123 receipt.pdf                # Attach receipt to quote
+buylog receipt open 123                              # Open attached receipt
+buylog receipt detach 123                            # Remove receipt from quote
+buylog receipt list                                  # List quotes with receipts
 
 # Web scraping
-buyer scrape url "https://example.com/product"      # Scrape price from URL
-buyer scrape quote "https://example.com/product" --vendor "Amazon US" --product "iPhone 15"  # Create quote from URL
+buylog scrape url "https://example.com/product"      # Scrape price from URL
+buylog scrape quote "https://example.com/product" --vendor "Amazon US" --product "iPhone 15"  # Create quote from URL
 ```
 
 ### Text User Interface (TUI)
@@ -177,7 +177,7 @@ buyer scrape quote "https://example.com/product" --vendor "Amazon US" --product 
 Launch the interactive TUI:
 
 ```bash
-buyer tui
+buylog tui
 ```
 
 The TUI provides:
@@ -236,7 +236,7 @@ uv run pytest
 # Run with coverage report
 make coverage
 # or
-uv run pytest --cov-report=html:cov_html --cov-report=term-missing --cov=buyer
+uv run pytest --cov-report=html:cov_html --cov-report=term-missing --cov=buylog
 ```
 
 ### Generate ER Diagram
@@ -244,7 +244,7 @@ uv run pytest --cov-report=html:cov_html --cov-report=term-missing --cov=buyer
 ```bash
 make diagram
 # or
-uv run python src/buyer/models.py
+uv run python src/buylog/models.py
 
 # Output: doc/er_model.svg
 ```
@@ -260,8 +260,8 @@ make clean
 ### Project Structure
 
 ```
-buyer-log/
-├── src/buyer/           # Main package
+buylog/
+├── src/buylog/          # Main package
 │   ├── models.py        # SQLAlchemy ORM models
 │   ├── cli.py           # CLI interface
 │   ├── tui.py           # Textual TUI interface
@@ -338,14 +338,14 @@ Business logic is separated into service classes:
 ## Configuration
 
 The application uses a configuration system via `config.py`:
-- Database path: `~/.buyer/buyer.db` (configurable via `BUYER_DB_PATH`)
+- Database path: `~/.buylog/buylog.db` (configurable via `BUYER_DB_PATH`)
 - Log level: `INFO` by default (configurable via `BUYER_LOG_LEVEL`)
 - Logging: Configured for both file and console output
 
 ## License
 
-[Add your license here]
+MIT
 
 ## Contributing
 
-[Add contribution guidelines here]
+Feedback, bug reports and code contributions are welcome!

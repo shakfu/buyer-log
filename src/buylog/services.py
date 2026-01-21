@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Business logic service layer for buyer application.
+Business logic service layer for buylog application.
 
 This module contains service classes that handle business logic,
 keeping it separate from models (data) and views (presentation).
@@ -36,7 +36,7 @@ from .models import (
 )
 from .audit import AuditService
 
-logger = logging.getLogger("buyer")
+logger = logging.getLogger("buylog")
 
 
 class ServiceError(Exception):
@@ -2466,7 +2466,9 @@ class BackupService:
 
         # Sort by modified time, newest first
         backups.sort(
-            key=lambda b: b["modified"] if isinstance(b["modified"], datetime.datetime) else datetime.datetime.min,
+            key=lambda b: b["modified"]
+            if isinstance(b["modified"], datetime.datetime)
+            else datetime.datetime.min,
             reverse=True,
         )
         return backups

@@ -2,7 +2,7 @@
 
 import datetime
 import pytest
-from buyer.services import (
+from buylog.services import (
     BrandService,
     ProductService,
     VendorService,
@@ -13,7 +13,7 @@ from buyer.services import (
     ValidationError,
     NotFoundError,
 )
-from buyer.models import Quote, QuoteHistory, PriceAlert, Product
+from buylog.models import Quote, QuoteHistory, PriceAlert, Product
 
 
 # Quote total_cost property tests

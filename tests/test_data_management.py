@@ -10,8 +10,8 @@ from pathlib import Path
 import pytest
 from sqlalchemy import select
 
-from buyer.models import Brand, Product, Vendor, Quote
-from buyer.services import (
+from buylog.models import Brand, Product, Vendor, Quote
+from buylog.services import (
     BrandService,
     ProductService,
     VendorService,

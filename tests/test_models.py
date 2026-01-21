@@ -1,7 +1,7 @@
 import pytest
 from sqlalchemy.exc import IntegrityError
 
-from buyer.models import Base, Brand, Product, Vendor, Quote, Forex
+from buylog.models import Base, Brand, Product, Vendor, Quote, Forex
 
 
 # Brand Tests
