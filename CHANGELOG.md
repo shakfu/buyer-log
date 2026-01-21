@@ -5,7 +5,9 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.8.0] - 2026-01-21
+## [Unreleased]
+
+## [0.1.7]
 
 ### Added
 - **Integration Features** - Connect with external tools and data
@@ -47,7 +49,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Tests** - 38 new tests for integration features (203 total tests)
 
-## [0.7.0] - 2026-01-21
+## [0.1.6]
 
 ### Added
 - **Data Management Features** - Import, export, backup, and deduplication
@@ -86,7 +88,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Tests** - 25 new tests for data management (165 total tests)
 
-## [0.6.0] - 2026-01-21
+## [0.1.5]
 
 ### Added
 - **Workflow Features** - Support the full purchasing lifecycle
@@ -130,7 +132,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Tests** - 40 new tests for workflow features (140 total tests)
 
-## [0.5.0] - 2026-01-21
+## [0.1.4]
 
 ### Added
 - **Price Comparison** - Compare prices across vendors for better purchasing decisions
@@ -163,7 +165,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Tests** - 12 new tests for comparison functionality (100 total tests)
 
-## [0.4.0] - 2026-01-21
+## [0.1.3]
 
 ### Added
 - **TUI Enhancements** - Improved daily usability
@@ -174,7 +176,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Inline Editing** - Press `e` to edit selected entity
   - **Sparklines** - Mini price trend graphs in quote rows showing price history
 
-## [0.3.0] - 2026-01-21
+## [0.1.2]
 
 ### Added
 - **Quote Analysis Features** - Tools for making better purchasing decisions
@@ -217,7 +219,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Tests**
   - `test_quote_analysis.py` with 30 new tests covering all quote analysis features
 
-## [0.2.0] - 2026-01-21
+## [0.1.1]
 
 ### Added
 - **Textual TUI** - Interactive terminal user interface (`buylog tui`)
@@ -242,7 +244,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Pydantic schemas** - Removed `schemas.py` (was only used by web interface)
 - **Dependencies** - Removed `fastapi`, `jinja2`, `pydantic` from requirements
 
-## [0.1.0] - Initial Release
+## [0.1.0]
 
 ### Added
 - Command Line Interface with CRUD operations

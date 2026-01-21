@@ -1,6 +1,6 @@
 # buylog
 
-A Python tool for purchasing support and vendor quote management with CLI and TUI interfaces.
+A Python tool to help you keep track of what you buy and want to buy.
 
 ## Features
 

@@ -1,4 +1,4 @@
-.PHONY: all web test coverage diagram lint format typecheck clean
+.PHONY: all test coverage diagram lint format typecheck clean build check upload-test upload
 
 all: test
 
@@ -27,6 +27,20 @@ clean:
 	@find . | grep -E "(__pycache__|\.pyc|\.pyo$/)" | xargs rm -rf
 	@rm -rf .pytest_cache
 	@rm -rf .coverage cov_html
-	@rm -rf dist build
+	@rm -rf dist build *.egg-info src/*.egg-info
 
+build: clean
+	@echo "building wheel and sdist"
+	@uv build
 
+check: build
+	@echo "checking distribution with twine"
+	@uv run twine check dist/*
+
+upload-test: check
+	@echo "uploading to TestPyPI"
+	@uv run twine upload --repository testpypi dist/*
+
+upload: check
+	@echo "uploading to PyPI"
+	@uv run twine upload dist/*
