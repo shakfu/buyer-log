@@ -309,6 +309,167 @@ def update_entity(session, entity_type, name, new_name):
         print(f"Updated {entity_type} '{name}' to '{new_name}'.")
 
 
+def seed_database(session):
+    """Populate database with sample data"""
+    import datetime
+
+    # Brands
+    brands_data = [
+        "Apple", "Samsung", "Sony", "LG", "Dell",
+        "HP", "Lenovo", "Asus", "Acer", "Microsoft"
+    ]
+    brands = {}
+    for name in brands_data:
+        existing = Brand.by_name(session, name)
+        if existing:
+            brands[name] = existing
+        else:
+            brand = Brand(name=name)
+            session.add(brand)
+            brands[name] = brand
+    session.commit()
+    print(f"Added {len(brands_data)} brands")
+
+    # Products
+    products_data = [
+        ("Apple", "iPhone 15 Pro"),
+        ("Apple", "MacBook Air M3"),
+        ("Apple", "iPad Pro 12.9"),
+        ("Samsung", "Galaxy S24 Ultra"),
+        ("Samsung", "Galaxy Tab S9"),
+        ("Sony", "WH-1000XM5"),
+        ("Sony", "PlayStation 5"),
+        ("LG", "C3 OLED 65"),
+        ("Dell", "XPS 15"),
+        ("HP", "Spectre x360"),
+        ("Lenovo", "ThinkPad X1 Carbon"),
+        ("Asus", "ROG Zephyrus G14"),
+        ("Microsoft", "Surface Pro 9"),
+        ("Microsoft", "Xbox Series X"),
+    ]
+    products = {}
+    for brand_name, product_name in products_data:
+        existing = Product.by_name(session, product_name)
+        if existing:
+            products[product_name] = existing
+        else:
+            product = Product(name=product_name, brand=brands[brand_name])
+            session.add(product)
+            products[product_name] = product
+    session.commit()
+    print(f"Added {len(products_data)} products")
+
+    # Vendors
+    vendors_data = [
+        ("Amazon US", "USD", None, 0.0),
+        ("Amazon UK", "GBP", "UKPRIME", 5.0),
+        ("Amazon DE", "EUR", None, 0.0),
+        ("Best Buy", "USD", "BBY10", 10.0),
+        ("B&H Photo", "USD", None, 0.0),
+        ("Newegg", "USD", "NEWEGG5", 5.0),
+        ("Adorama", "USD", None, 0.0),
+        ("Currys UK", "GBP", None, 0.0),
+        ("MediaMarkt", "EUR", "MM15", 15.0),
+    ]
+    vendors = {}
+    for name, currency, discount_code, discount in vendors_data:
+        existing = Vendor.by_name(session, name)
+        if existing:
+            vendors[name] = existing
+        else:
+            vendor = Vendor(
+                name=name,
+                currency=currency,
+                discount_code=discount_code,
+                discount=discount
+            )
+            session.add(vendor)
+            vendors[name] = vendor
+    session.commit()
+    print(f"Added {len(vendors_data)} vendors")
+
+    # Forex rates
+    today = datetime.date.today()
+    forex_data = [
+        ("EUR", 1.08),
+        ("GBP", 1.27),
+        ("JPY", 0.0067),
+        ("CAD", 0.74),
+        ("AUD", 0.65),
+    ]
+    for code, rate in forex_data:
+        existing = session.execute(
+            select(Forex).where(Forex.code == code, Forex.date == today)
+        ).scalar_one_or_none()
+        if not existing:
+            fx = Forex(code=code, usd_per_unit=rate, date=today)
+            session.add(fx)
+    session.commit()
+    print(f"Added {len(forex_data)} forex rates")
+
+    # Quotes
+    quotes_data = [
+        ("Amazon US", "iPhone 15 Pro", 999.00),
+        ("Best Buy", "iPhone 15 Pro", 999.00),
+        ("B&H Photo", "iPhone 15 Pro", 979.00),
+        ("Amazon US", "MacBook Air M3", 1099.00),
+        ("Best Buy", "MacBook Air M3", 1099.00),
+        ("Amazon US", "Galaxy S24 Ultra", 1299.00),
+        ("Newegg", "Galaxy S24 Ultra", 1249.00),
+        ("Amazon US", "WH-1000XM5", 348.00),
+        ("Amazon UK", "WH-1000XM5", 279.00),
+        ("Amazon DE", "WH-1000XM5", 299.00),
+        ("Best Buy", "PlayStation 5", 499.00),
+        ("Amazon US", "PlayStation 5", 499.00),
+        ("Amazon US", "XPS 15", 1499.00),
+        ("Dell", "XPS 15", 1399.00) if Vendor.by_name(session, "Dell") else None,
+        ("Amazon US", "C3 OLED 65", 1499.00),
+        ("Best Buy", "C3 OLED 65", 1399.00),
+        ("Currys UK", "C3 OLED 65", 1199.00),
+        ("Amazon US", "ThinkPad X1 Carbon", 1649.00),
+        ("Newegg", "ThinkPad X1 Carbon", 1599.00),
+        ("Amazon US", "Surface Pro 9", 999.00),
+        ("Best Buy", "Surface Pro 9", 999.00),
+        ("MediaMarkt", "Surface Pro 9", 949.00),
+    ]
+    quote_count = 0
+    for item in quotes_data:
+        if item is None:
+            continue
+        vendor_name, product_name, price = item
+        vendor = vendors.get(vendor_name)
+        product = products.get(product_name)
+        if not vendor or not product:
+            continue
+
+        value = price
+        original_value = None
+        original_currency = None
+
+        if vendor.currency != "USD":
+            fx_rate = session.execute(
+                select(Forex).where(Forex.code == vendor.currency)
+            ).scalar_one_or_none()
+            if fx_rate:
+                original_value = value
+                original_currency = vendor.currency
+                value = value * fx_rate.usd_per_unit
+
+        quote = Quote(
+            vendor=vendor,
+            product=product,
+            currency="USD",
+            value=value,
+            original_value=original_value,
+            original_currency=original_currency,
+        )
+        session.add(quote)
+        quote_count += 1
+    session.commit()
+    print(f"Added {quote_count} quotes")
+    print("Database seeded successfully!")
+
+
 def search_entities(session, query):
     """Search for items in the database"""
 
@@ -433,6 +594,12 @@ def main():
     search_parser = subparsers.add_parser("search", help="Search for items")
     search_parser.add_argument("query", type=str, help="Search query")
 
+    # TUI command
+    subparsers.add_parser("tui", help="Launch interactive TUI")
+
+    # Seed command
+    subparsers.add_parser("seed", help="Populate database with sample data")
+
     args = parser.parse_args()
 
     if not args.command:
@@ -483,6 +650,15 @@ def main():
 
         elif args.command == "search":
             search_entities(session, args.query)
+
+        elif args.command == "tui":
+            session.close()
+            from .tui import main as tui_main
+            tui_main()
+            return
+
+        elif args.command == "seed":
+            seed_database(session)
 
     except IntegrityError as e:
         session.rollback()

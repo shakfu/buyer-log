@@ -1,19 +1,16 @@
 # buyer-log
 
-A Python tool for purchasing support and vendor quote management with both CLI and web interfaces.
+A Python tool for purchasing support and vendor quote management with CLI and TUI interfaces.
 
 ## Features
 
-### Implemented
-
 - **Command Line Interface (CLI)** - Full CRUD operations for managing brands, products, vendors, and quotes
-- **Web Interface** - FastAPI-based web UI with HTMX for dynamic interactions
+- **Text User Interface (TUI)** - Interactive terminal UI built with Textual
 - **Data Persistence** - SQLAlchemy ORM with SQLite support
 - **Multi-currency Support** - Forex rate tracking with automatic currency conversion
 - **Service Layer** - Business logic separation with validation and error handling
 - **Audit Logging** - Track entity creation, updates, and deletions
 - **Testing** - pytest-based test suite with factory pattern
-- **ER Diagram Generation** - Automatic database schema visualization
 
 ## Installation
 
@@ -27,9 +24,6 @@ uv sync
 
 # Or install with development dependencies
 uv sync --group dev
-
-# Or install with web dependencies
-uv sync --group web
 ```
 
 ## Usage
@@ -68,31 +62,30 @@ buyer delete brand --name apple
 buyer delete product --name iphone-14
 buyer delete vendor --name amazon.com
 buyer delete quote --id 1
+
+# Seed database with sample data
+buyer seed
 ```
 
-### Web Interface
+### Text User Interface (TUI)
 
-Start the web server:
+Launch the interactive TUI:
 
 ```bash
-# Using make
-make web
-
-# Or directly
-uv run python -m buyer.web
-
-# Or with uvicorn
-uv run uvicorn buyer.web:app --reload
+buyer tui
 ```
 
-Then visit `http://localhost:8000` in your browser.
-
-The web interface provides:
-- Interactive forms for adding brands, products, vendors, and quotes
-- Real-time updates using HTMX
-- Delete operations with confirmation dialogs
-- Responsive design for desktop and mobile
-
+The TUI provides:
+- Tabbed interface for Brands, Products, Vendors, Quotes, and Forex rates
+- DataTables with row selection
+- Modal forms for adding entities
+- Search/filter functionality
+- Keyboard shortcuts:
+  - `q` - Quit
+  - `a` - Add new entity
+  - `d` - Delete selected entity
+  - `r` - Refresh data
+  - `s` or `/` - Focus search
 
 ## Development
 
@@ -135,12 +128,11 @@ buyer-log/
 ├── src/buyer/           # Main package
 │   ├── models.py        # SQLAlchemy ORM models
 │   ├── cli.py           # CLI interface
-│   ├── web.py           # FastAPI web interface
+│   ├── tui.py           # Textual TUI interface
 │   ├── services.py      # Business logic layer
 │   ├── config.py        # Configuration management
 │   ├── audit.py         # Audit logging
-│   ├── cache.py         # Caching utilities
-│   └── schemas.py       # Pydantic schemas
+│   └── cache.py         # Caching utilities
 ├── tests/               # Test suite
 │   ├── conftest.py      # pytest fixtures
 │   ├── factories.py     # Factory Boy test data
@@ -177,52 +169,11 @@ Business logic is separated into service classes:
 - `QuoteService` - Quote management with currency conversion
 - `AuditService` - Entity change tracking
 
-## Roadmap
-
-### Completed
-- [x] **Command Line Interface (CLI)** - Full CRUD operations
-- [x] **Web Interface** - FastAPI with HTMX
-- [x] **Data Persistence** - SQLAlchemy with SQLite
-- [x] **Multi-currency Support** - Forex rate tracking
-- [x] **Service Layer** - Business logic separation
-- [x] **Audit Logging** - Entity change tracking
-- [x] **Testing Framework** - pytest with factories
-
-### Planned Features
-
-- [ ] **Interactive REPL** for buying support
-- [ ] **Inventory Management**
-  - [ ] Track purchased items with metadata
-  - [ ] Purchase history and warranty tracking
-  - [ ] Stock level monitoring
-  - [ ] Item categorization and tagging
-
-- [ ] **Price Monitoring & Web Scraping**
-  - [ ] Automated vendor price tracking
-  - [ ] Price history and trend analysis
-  - [ ] Price drop alerts and notifications
-  - [ ] Multi-vendor price comparison
-
-- [ ] **Report Generation**
-  - [ ] Quote comparison reports
-  - [ ] Shipping cost analysis
-  - [ ] Budget tracking and management
-  - [ ] Sales pattern recommendations
-  - [ ] Export formats (XLSX, HTML, PDF, CSV)
-
-- [ ] **Advanced Features**
-  - [ ] Real-time exchange rates API integration
-  - [ ] Purchase approval workflows
-  - [ ] Integration with accounting systems
-  - [ ] REST API for third-party integrations
-  - [ ] PostgreSQL support for production
-
 ## Technologies
 
 - **Python 3.13+** - Core language
 - **SQLAlchemy 2.0+** - ORM and database abstraction
-- **FastAPI** - Modern web framework
-- **HTMX** - Dynamic web interactions
+- **Textual** - Modern terminal UI framework
 - **pytest** - Testing framework
 - **Factory Boy** - Test data generation
 - **uv** - Fast Python package manager
@@ -232,9 +183,9 @@ Business logic is separated into service classes:
 ## Configuration
 
 The application uses a configuration system via `config.py`:
-- Database path: `~/.buyer/buyer.db` (configurable via environment)
+- Database path: `~/.buyer/buyer.db` (configurable via `BUYER_DB_PATH`)
+- Log level: `INFO` by default (configurable via `BUYER_LOG_LEVEL`)
 - Logging: Configured for both file and console output
-- Session management: Automatic connection pooling
 
 ## License
 
@@ -243,7 +194,3 @@ The application uses a configuration system via `config.py`:
 ## Contributing
 
 [Add contribution guidelines here]
-
-## References
-
-- [redbird](https://red-bird.readthedocs.io/en/stable/index.html) - Task scheduling library for future integration

@@ -19,7 +19,7 @@ class Config:
     DB_URL = f"sqlite:///{DB_PATH}"
 
     # Logging configuration
-    LOG_LEVEL = os.getenv("BUYER_LOG_LEVEL", "INFO" if ENV == "production" else "DEBUG")
+    LOG_LEVEL = os.getenv("BUYER_LOG_LEVEL", "INFO")
     LOG_PATH = Path(os.getenv("BUYER_LOG_PATH", str(Path.home() / ".buyer" / "buyer.log")))
 
     # Ensure database directory exists
