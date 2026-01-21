@@ -3399,7 +3399,7 @@ class ReportService:
 </head>
 <body>
     <h1>{title}</h1>
-    <p class="text-muted">Generated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+    <p class="text-muted">Generated: {datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</p>
 """
 
     @staticmethod
@@ -3411,7 +3411,11 @@ class ReportService:
 """
 
     @staticmethod
-    def _html_table(headers: List[str], rows: List[List[str]], row_classes: Optional[List[str]] = None) -> str:
+    def _html_table(
+        headers: List[str],
+        rows: List[List[str]],
+        row_classes: Optional[List[str]] = None,
+    ) -> str:
         """Generate an HTML table."""
         html = "<table>\n<thead>\n<tr>"
         for h in headers:
@@ -3443,7 +3447,9 @@ class ReportService:
         )
 
     @staticmethod
-    def price_comparison_report(session: Session, filter_term: Optional[str] = None) -> str:
+    def price_comparison_report(
+        session: Session, filter_term: Optional[str] = None
+    ) -> str:
         """
         Generate a price comparison report.
 
@@ -3521,7 +3527,13 @@ class ReportService:
             if product.category:
                 html += f"<p class='text-muted'>Category: {ReportService._escape_html(product.category)}</p>\n"
 
-            headers = ["Vendor", "Price (USD)", "Total Cost", "Discount Code", "Savings vs Worst"]
+            headers = [
+                "Vendor",
+                "Price (USD)",
+                "Total Cost",
+                "Discount Code",
+                "Savings vs Worst",
+            ]
             rows = []
             row_classes = []
 
@@ -3536,13 +3548,15 @@ class ReportService:
                     if savings_amount > 0:
                         savings = f"<span class='savings'>${savings_amount:.2f}</span>"
 
-                rows.append([
-                    ReportService._escape_html(q.vendor.name),
-                    f"${q.value:.2f}",
-                    f"${q.total_cost:.2f}",
-                    discount_code or "-",
-                    savings or "-",
-                ])
+                rows.append(
+                    [
+                        ReportService._escape_html(q.vendor.name),
+                        f"${q.value:.2f}",
+                        f"${q.total_cost:.2f}",
+                        discount_code or "-",
+                        savings or "-",
+                    ]
+                )
                 row_classes.append("best-price" if q.value == best_price else "")
 
             html += ReportService._html_table(headers, rows, row_classes)
@@ -3574,8 +3588,8 @@ class ReportService:
         """
         html = ReportService._html_header("Purchase Summary Report")
 
-        status_totals = {}
-        all_quotes = []
+        status_totals: Dict[str, Dict[str, Any]] = {}
+        all_quotes: List[Quote] = []
 
         for status in QUOTE_STATUSES:
             quotes = (
@@ -3600,9 +3614,9 @@ class ReportService:
             all_quotes.extend(quotes)
 
         # Summary box
-        total_considering = status_totals["considering"]["total"]
-        total_ordered = status_totals["ordered"]["total"]
-        total_received = status_totals["received"]["total"]
+        total_considering: float = status_totals["considering"]["total"]
+        total_ordered: float = status_totals["ordered"]["total"]
+        total_received: float = status_totals["received"]["total"]
         total_all = total_considering + total_ordered + total_received
 
         html += f"""
@@ -3635,7 +3649,8 @@ class ReportService:
 
         for status in QUOTE_STATUSES:
             data = status_totals[status]
-            if not data["quotes"]:
+            quotes_list: List[Quote] = data["quotes"]
+            if not quotes_list:
                 continue
 
             html += f"<h2>{status_labels[status]} ({data['count']} items - ${data['total']:.2f})</h2>\n"
@@ -3644,14 +3659,16 @@ class ReportService:
             rows = []
             row_classes = []
 
-            for q in data["quotes"]:
-                rows.append([
-                    f"{ReportService._escape_html(q.product.brand.name)} {ReportService._escape_html(q.product.name)}",
-                    ReportService._escape_html(q.vendor.name),
-                    f"${q.value:.2f}",
-                    f"${q.total_cost:.2f}",
-                    q.created_at.strftime("%Y-%m-%d") if q.created_at else "-",
-                ])
+            for q in quotes_list:
+                rows.append(
+                    [
+                        f"{ReportService._escape_html(q.product.brand.name)} {ReportService._escape_html(q.product.name)}",
+                        ReportService._escape_html(q.vendor.name),
+                        f"${q.value:.2f}",
+                        f"${q.total_cost:.2f}",
+                        q.created_at.strftime("%Y-%m-%d") if q.created_at else "-",
+                    ]
+                )
                 row_classes.append(f"status-{status}")
 
             html += ReportService._html_table(headers, rows, row_classes)
@@ -3672,9 +3689,7 @@ class ReportService:
         """
         vendors = (
             session.execute(
-                select(Vendor)
-                .options(joinedload(Vendor.quotes))
-                .order_by(Vendor.name)
+                select(Vendor).options(joinedload(Vendor.quotes)).order_by(Vendor.name)
             )
             .unique()
             .scalars()
@@ -3707,7 +3722,14 @@ class ReportService:
 
         # Vendor table
         html += "<h2>Vendor Details</h2>\n"
-        headers = ["Vendor", "Currency", "Quotes", "Avg Price", "Total Value", "Discount Code"]
+        headers = [
+            "Vendor",
+            "Currency",
+            "Quotes",
+            "Avg Price",
+            "Total Value",
+            "Discount Code",
+        ]
         rows = []
 
         for v in vendors:
@@ -3723,14 +3745,16 @@ class ReportService:
             if v.discount_code:
                 discount_info = f"<span class='discount-code'>{ReportService._escape_html(v.discount_code)}</span> ({v.discount}%)"
 
-            rows.append([
-                ReportService._escape_html(v.name),
-                v.currency,
-                str(quote_count),
-                f"${avg_price:.2f}" if quote_count > 0 else "-",
-                f"${total_value:.2f}" if quote_count > 0 else "-",
-                discount_info or "-",
-            ])
+            rows.append(
+                [
+                    ReportService._escape_html(v.name),
+                    v.currency,
+                    str(quote_count),
+                    f"${avg_price:.2f}" if quote_count > 0 else "-",
+                    f"${total_value:.2f}" if quote_count > 0 else "-",
+                    discount_info or "-",
+                ]
+            )
 
         html += ReportService._html_table(headers, rows)
 
@@ -3747,12 +3771,14 @@ class ReportService:
         headers = ["Currency", "Vendors", "Quotes", "Total Value (USD)"]
         rows = []
         for currency, stats in sorted(currency_stats.items()):
-            rows.append([
-                currency,
-                str(stats["vendors"]),
-                str(stats["quotes"]),
-                f"${stats['total']:.2f}",
-            ])
+            rows.append(
+                [
+                    currency,
+                    str(stats["vendors"]),
+                    str(stats["quotes"]),
+                    f"${stats['total']:.2f}",
+                ]
+            )
         html += ReportService._html_table(headers, rows)
 
         html += ReportService._html_footer()
@@ -3760,10 +3786,7 @@ class ReportService:
 
     @staticmethod
     def generate_report(
-        session: Session,
-        preset: str,
-        output_file: Optional[str] = None,
-        **kwargs
+        session: Session, preset: str, output_file: Optional[str] = None, **kwargs
     ) -> str:
         """
         Generate a report using the specified preset.

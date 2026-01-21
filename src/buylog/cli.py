@@ -1113,9 +1113,7 @@ def main():
     report_price_parser.add_argument(
         "--filter", type=str, help="Filter products by name"
     )
-    report_price_parser.add_argument(
-        "--output", type=str, help="Output HTML file path"
-    )
+    report_price_parser.add_argument("--output", type=str, help="Output HTML file path")
 
     # Report purchase-summary
     report_purchase_parser = report_subparsers.add_parser(
@@ -2119,7 +2117,9 @@ def main():
                     print(f"Error: {e}")
 
             else:
-                print("Usage: buylog report [price-comparison|purchase-summary|vendor-analysis]")
+                print(
+                    "Usage: buylog report [price-comparison|purchase-summary|vendor-analysis]"
+                )
 
     except IntegrityError as e:
         session.rollback()
