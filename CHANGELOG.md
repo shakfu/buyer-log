@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.7]
 
 ### Added
+
 - **Integration Features** - Connect with external tools and data
 
   - **Clipboard Support** - Copy data to clipboard

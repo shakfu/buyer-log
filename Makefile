@@ -1,4 +1,5 @@
-.PHONY: all test coverage diagram lint format typecheck clean build check upload-test upload
+.PHONY: all test coverage diagram lint format typecheck clean \
+		build check publish-test publish
 
 all: test
 
@@ -32,15 +33,16 @@ clean:
 build: clean
 	@echo "building wheel and sdist"
 	@uv build
+	@uv run twine check dist/*
 
-check: build
+check:
 	@echo "checking distribution with twine"
 	@uv run twine check dist/*
 
-upload-test: check
+publish-test: check
 	@echo "uploading to TestPyPI"
 	@uv run twine upload --repository testpypi dist/*
 
-upload: check
+publish: check
 	@echo "uploading to PyPI"
 	@uv run twine upload dist/*
