@@ -1,5 +1,5 @@
 .PHONY: all test coverage diagram lint format typecheck clean \
-		build check publish-test publish
+		build check publish-test publish version bump tag
 
 all: test
 
@@ -46,3 +46,12 @@ publish-test: check
 publish: check
 	@echo "uploading to PyPI"
 	@uv run twine upload dist/*
+
+version:
+	@uv run python scripts/version.py
+
+bump:
+	@uv run python scripts/version.py bump
+
+tag:
+	@uv run python scripts/version.py tag
