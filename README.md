@@ -15,6 +15,12 @@ A Python tool to help you keep track of what you buy and want to buy.
 
 ## Installation
 
+```sh
+pip install buylog
+```
+
+To build
+
 ```bash
 # Clone the repository
 git clone https://github.com/shakfu/buylog
@@ -170,6 +176,13 @@ buylog receipt list                                  # List quotes with receipts
 # Web scraping
 buylog scrape url "https://example.com/product"      # Scrape price from URL
 buylog scrape quote "https://example.com/product" --vendor "Amazon US" --product "iPhone 15"  # Create quote from URL
+
+# HTML reports
+buylog report price-comparison                       # Compare prices across vendors
+buylog report price-comparison --filter "iPhone"     # Filter by product name
+buylog report price-comparison --output report.html  # Save to file
+buylog report purchase-summary --output summary.html # Summary by status
+buylog report vendor-analysis --output vendors.html  # Vendor statistics
 ```
 
 ### Text User Interface (TUI)
@@ -181,6 +194,7 @@ buylog tui
 ```
 
 The TUI provides:
+
 - Tabbed interface for Brands, Products, Vendors, Quotes, Forex rates, Alerts, Lists, and Watchlist
 - DataTables with row selection
 - Modal forms for adding entities
@@ -259,7 +273,7 @@ make clean
 
 ### Project Structure
 
-```
+```text
 buylog/
 ├── src/buylog/          # Main package
 │   ├── models.py        # SQLAlchemy ORM models
@@ -298,6 +312,7 @@ The core domain models:
 - **Watchlist** - Product monitoring with target prices
 
 Key relationships:
+
 - Many-to-many between Vendors and Brands (via `vendor_brand` junction table)
 - One-to-many from Brand to Products
 - One-to-many from Vendor and Product to Quotes
@@ -311,6 +326,7 @@ See the auto-generated ER diagram: `doc/er_model.svg`
 ### Service Layer
 
 Business logic is separated into service classes:
+
 - `BrandService` - Brand CRUD with validation
 - `ProductService` - Product management with eager loading
 - `VendorService` - Vendor operations
@@ -322,6 +338,7 @@ Business logic is separated into service classes:
 - `NoteService` - Note CRUD for any entity type
 - `TagService` - Tag management and entity tagging
 - `WatchlistService` - Watchlist management with target prices
+- `ReportService` - HTML report generation (price comparison, purchase summary, vendor analysis)
 - `AuditService` - Entity change tracking
 
 ## Technologies
@@ -338,6 +355,7 @@ Business logic is separated into service classes:
 ## Configuration
 
 The application uses a configuration system via `config.py`:
+
 - Database path: `~/.buylog/buylog.db` (configurable via `BUYER_DB_PATH`)
 - Log level: `INFO` by default (configurable via `BUYER_LOG_LEVEL`)
 - Logging: Configured for both file and console output

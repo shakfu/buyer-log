@@ -1100,6 +1100,39 @@ def main():
         "--brand", type=str, help="Brand name (for new products)"
     )
 
+    # Report command
+    report_parser = subparsers.add_parser("report", help="Generate HTML reports")
+    report_subparsers = report_parser.add_subparsers(
+        dest="report_command", help="Report commands"
+    )
+
+    # Report price-comparison
+    report_price_parser = report_subparsers.add_parser(
+        "price-comparison", help="Compare prices across vendors"
+    )
+    report_price_parser.add_argument(
+        "--filter", type=str, help="Filter products by name"
+    )
+    report_price_parser.add_argument(
+        "--output", type=str, help="Output HTML file path"
+    )
+
+    # Report purchase-summary
+    report_purchase_parser = report_subparsers.add_parser(
+        "purchase-summary", help="Summary of quotes by status"
+    )
+    report_purchase_parser.add_argument(
+        "--output", type=str, help="Output HTML file path"
+    )
+
+    # Report vendor-analysis
+    report_vendor_parser = report_subparsers.add_parser(
+        "vendor-analysis", help="Vendor statistics and analysis"
+    )
+    report_vendor_parser.add_argument(
+        "--output", type=str, help="Output HTML file path"
+    )
+
     args = parser.parse_args()
 
     if not args.command:
@@ -2035,6 +2068,58 @@ def main():
 
             else:
                 print("Usage: buylog scrape [url|quote]")
+
+        elif args.command == "report":
+            from .services import ReportService, ValidationError
+
+            output_file = getattr(args, "output", None)
+
+            if args.report_command == "price-comparison":
+                try:
+                    filter_term = getattr(args, "filter", None)
+                    result = ReportService.generate_report(
+                        session,
+                        "price-comparison",
+                        output_file,
+                        filter_term=filter_term,
+                    )
+                    if output_file:
+                        print(f"Generated price comparison report: {result}")
+                    else:
+                        print(result)
+                except ValidationError as e:
+                    print(f"Error: {e}")
+
+            elif args.report_command == "purchase-summary":
+                try:
+                    result = ReportService.generate_report(
+                        session,
+                        "purchase-summary",
+                        output_file,
+                    )
+                    if output_file:
+                        print(f"Generated purchase summary report: {result}")
+                    else:
+                        print(result)
+                except ValidationError as e:
+                    print(f"Error: {e}")
+
+            elif args.report_command == "vendor-analysis":
+                try:
+                    result = ReportService.generate_report(
+                        session,
+                        "vendor-analysis",
+                        output_file,
+                    )
+                    if output_file:
+                        print(f"Generated vendor analysis report: {result}")
+                    else:
+                        print(result)
+                except ValidationError as e:
+                    print(f"Error: {e}")
+
+            else:
+                print("Usage: buylog report [price-comparison|purchase-summary|vendor-analysis]")
 
     except IntegrityError as e:
         session.rollback()

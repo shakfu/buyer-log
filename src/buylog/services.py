@@ -3288,3 +3288,513 @@ class ScraperService:
             session.rollback()
             logger.error(f"Failed to create quote from scrape: {e}")
             raise ServiceError(f"Failed to create quote: {e}") from e
+
+
+class ReportService:
+    """Service for generating HTML reports."""
+
+    # CSS styles for reports
+    CSS = """
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+            border-bottom: 2px solid #2c3e50;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #2c3e50;
+            margin-top: 30px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background-color: white;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #2c3e50;
+            color: white;
+            font-weight: 600;
+        }
+        tr:hover {
+            background-color: #f5f5f5;
+        }
+        .best-price {
+            background-color: #d4edda;
+            font-weight: bold;
+        }
+        .status-considering {
+            background-color: #fff3cd;
+        }
+        .status-ordered {
+            background-color: #cce5ff;
+        }
+        .status-received {
+            background-color: #d4edda;
+        }
+        .summary-box {
+            background-color: white;
+            padding: 20px;
+            border-radius: 5px;
+            margin: 20px 0;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .summary-item {
+            display: inline-block;
+            margin-right: 30px;
+            padding: 10px;
+        }
+        .summary-label {
+            color: #666;
+            font-size: 0.9em;
+        }
+        .summary-value {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        .discount-code {
+            background-color: #e7f5ff;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+        .savings {
+            color: #28a745;
+            font-weight: bold;
+        }
+        .text-muted {
+            color: #6c757d;
+        }
+        @media print {
+            body { background-color: white; }
+            table { box-shadow: none; }
+            .summary-box { box-shadow: none; border: 1px solid #ddd; }
+        }
+    """
+
+    @staticmethod
+    def _html_header(title: str) -> str:
+        """Generate HTML header with CSS styles."""
+        return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{title}</title>
+    <style>{ReportService.CSS}</style>
+</head>
+<body>
+    <h1>{title}</h1>
+    <p class="text-muted">Generated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+"""
+
+    @staticmethod
+    def _html_footer() -> str:
+        """Generate HTML footer."""
+        return """
+</body>
+</html>
+"""
+
+    @staticmethod
+    def _html_table(headers: List[str], rows: List[List[str]], row_classes: Optional[List[str]] = None) -> str:
+        """Generate an HTML table."""
+        html = "<table>\n<thead>\n<tr>"
+        for h in headers:
+            html += f"<th>{h}</th>"
+        html += "</tr>\n</thead>\n<tbody>\n"
+
+        for i, row in enumerate(rows):
+            row_class = row_classes[i] if row_classes and i < len(row_classes) else ""
+            class_attr = f' class="{row_class}"' if row_class else ""
+            html += f"<tr{class_attr}>"
+            for cell in row:
+                html += f"<td>{cell}</td>"
+            html += "</tr>\n"
+
+        html += "</tbody>\n</table>\n"
+        return html
+
+    @staticmethod
+    def _escape_html(text: str) -> str:
+        """Escape HTML special characters."""
+        if text is None:
+            return ""
+        return (
+            str(text)
+            .replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+            .replace('"', "&quot;")
+        )
+
+    @staticmethod
+    def price_comparison_report(session: Session, filter_term: Optional[str] = None) -> str:
+        """
+        Generate a price comparison report.
+
+        Args:
+            session: Database session
+            filter_term: Optional filter term for products
+
+        Returns:
+            HTML string of the report
+        """
+        # Get products with quotes
+        if filter_term:
+            products = (
+                session.execute(
+                    select(Product)
+                    .options(
+                        joinedload(Product.brand),
+                        joinedload(Product.quotes).joinedload(Quote.vendor),
+                    )
+                    .where(Product.name.ilike(f"%{filter_term}%"))
+                    .order_by(Product.name)
+                )
+                .unique()
+                .scalars()
+                .all()
+            )
+        else:
+            products = (
+                session.execute(
+                    select(Product)
+                    .options(
+                        joinedload(Product.brand),
+                        joinedload(Product.quotes).joinedload(Quote.vendor),
+                    )
+                    .order_by(Product.name)
+                )
+                .unique()
+                .scalars()
+                .all()
+            )
+
+        title = "Price Comparison Report"
+        if filter_term:
+            title += f" - '{ReportService._escape_html(filter_term)}'"
+
+        html = ReportService._html_header(title)
+
+        # Summary
+        total_products = len([p for p in products if p.quotes])
+        total_quotes = sum(len(p.quotes) for p in products)
+        html += f"""
+    <div class="summary-box">
+        <div class="summary-item">
+            <div class="summary-label">Products</div>
+            <div class="summary-value">{total_products}</div>
+        </div>
+        <div class="summary-item">
+            <div class="summary-label">Total Quotes</div>
+            <div class="summary-value">{total_quotes}</div>
+        </div>
+    </div>
+"""
+
+        # Product comparisons
+        for product in products:
+            if not product.quotes:
+                continue
+
+            quotes = sorted(product.quotes, key=lambda q: q.value)
+            best_price = quotes[0].value if quotes else None
+            worst_price = quotes[-1].value if quotes else None
+
+            html += f"<h2>{ReportService._escape_html(product.brand.name)} {ReportService._escape_html(product.name)}</h2>\n"
+
+            if product.category:
+                html += f"<p class='text-muted'>Category: {ReportService._escape_html(product.category)}</p>\n"
+
+            headers = ["Vendor", "Price (USD)", "Total Cost", "Discount Code", "Savings vs Worst"]
+            rows = []
+            row_classes = []
+
+            for q in quotes:
+                discount_code = ""
+                if q.vendor.discount_code:
+                    discount_code = f"<span class='discount-code'>{ReportService._escape_html(q.vendor.discount_code)}</span> ({q.vendor.discount}%)"
+
+                savings = ""
+                if worst_price and best_price and worst_price > best_price:
+                    savings_amount = worst_price - q.value
+                    if savings_amount > 0:
+                        savings = f"<span class='savings'>${savings_amount:.2f}</span>"
+
+                rows.append([
+                    ReportService._escape_html(q.vendor.name),
+                    f"${q.value:.2f}",
+                    f"${q.total_cost:.2f}",
+                    discount_code or "-",
+                    savings or "-",
+                ])
+                row_classes.append("best-price" if q.value == best_price else "")
+
+            html += ReportService._html_table(headers, rows, row_classes)
+
+            # Price spread summary
+            if best_price and worst_price:
+                spread = worst_price - best_price
+                html += f"""
+    <p>
+        Best: <strong>${best_price:.2f}</strong> |
+        Worst: <strong>${worst_price:.2f}</strong> |
+        Potential Savings: <span class="savings">${spread:.2f}</span>
+    </p>
+"""
+
+        html += ReportService._html_footer()
+        return html
+
+    @staticmethod
+    def purchase_summary_report(session: Session) -> str:
+        """
+        Generate a purchase summary report grouped by status.
+
+        Args:
+            session: Database session
+
+        Returns:
+            HTML string of the report
+        """
+        html = ReportService._html_header("Purchase Summary Report")
+
+        status_totals = {}
+        all_quotes = []
+
+        for status in QUOTE_STATUSES:
+            quotes = (
+                session.execute(
+                    select(Quote)
+                    .options(
+                        joinedload(Quote.vendor),
+                        joinedload(Quote.product).joinedload(Product.brand),
+                    )
+                    .where(Quote.status == status)
+                    .order_by(Quote.created_at.desc())
+                )
+                .unique()
+                .scalars()
+                .all()
+            )
+            status_totals[status] = {
+                "count": len(quotes),
+                "total": sum(q.total_cost for q in quotes),
+                "quotes": list(quotes),
+            }
+            all_quotes.extend(quotes)
+
+        # Summary box
+        total_considering = status_totals["considering"]["total"]
+        total_ordered = status_totals["ordered"]["total"]
+        total_received = status_totals["received"]["total"]
+        total_all = total_considering + total_ordered + total_received
+
+        html += f"""
+    <div class="summary-box">
+        <div class="summary-item">
+            <div class="summary-label">Considering</div>
+            <div class="summary-value">${total_considering:.2f}</div>
+        </div>
+        <div class="summary-item">
+            <div class="summary-label">Ordered</div>
+            <div class="summary-value">${total_ordered:.2f}</div>
+        </div>
+        <div class="summary-item">
+            <div class="summary-label">Received</div>
+            <div class="summary-value">${total_received:.2f}</div>
+        </div>
+        <div class="summary-item">
+            <div class="summary-label">Grand Total</div>
+            <div class="summary-value">${total_all:.2f}</div>
+        </div>
+    </div>
+"""
+
+        # Status sections
+        status_labels = {
+            "considering": "Under Consideration",
+            "ordered": "Ordered",
+            "received": "Received",
+        }
+
+        for status in QUOTE_STATUSES:
+            data = status_totals[status]
+            if not data["quotes"]:
+                continue
+
+            html += f"<h2>{status_labels[status]} ({data['count']} items - ${data['total']:.2f})</h2>\n"
+
+            headers = ["Product", "Vendor", "Price", "Total Cost", "Date"]
+            rows = []
+            row_classes = []
+
+            for q in data["quotes"]:
+                rows.append([
+                    f"{ReportService._escape_html(q.product.brand.name)} {ReportService._escape_html(q.product.name)}",
+                    ReportService._escape_html(q.vendor.name),
+                    f"${q.value:.2f}",
+                    f"${q.total_cost:.2f}",
+                    q.created_at.strftime("%Y-%m-%d") if q.created_at else "-",
+                ])
+                row_classes.append(f"status-{status}")
+
+            html += ReportService._html_table(headers, rows, row_classes)
+
+        html += ReportService._html_footer()
+        return html
+
+    @staticmethod
+    def vendor_analysis_report(session: Session) -> str:
+        """
+        Generate a vendor analysis report.
+
+        Args:
+            session: Database session
+
+        Returns:
+            HTML string of the report
+        """
+        vendors = (
+            session.execute(
+                select(Vendor)
+                .options(joinedload(Vendor.quotes))
+                .order_by(Vendor.name)
+            )
+            .unique()
+            .scalars()
+            .all()
+        )
+
+        html = ReportService._html_header("Vendor Analysis Report")
+
+        # Summary
+        total_vendors = len(vendors)
+        vendors_with_quotes = len([v for v in vendors if v.quotes])
+        total_quotes = sum(len(v.quotes) for v in vendors)
+
+        html += f"""
+    <div class="summary-box">
+        <div class="summary-item">
+            <div class="summary-label">Total Vendors</div>
+            <div class="summary-value">{total_vendors}</div>
+        </div>
+        <div class="summary-item">
+            <div class="summary-label">With Quotes</div>
+            <div class="summary-value">{vendors_with_quotes}</div>
+        </div>
+        <div class="summary-item">
+            <div class="summary-label">Total Quotes</div>
+            <div class="summary-value">{total_quotes}</div>
+        </div>
+    </div>
+"""
+
+        # Vendor table
+        html += "<h2>Vendor Details</h2>\n"
+        headers = ["Vendor", "Currency", "Quotes", "Avg Price", "Total Value", "Discount Code"]
+        rows = []
+
+        for v in vendors:
+            quote_count = len(v.quotes)
+            if quote_count > 0:
+                avg_price = sum(q.value for q in v.quotes) / quote_count
+                total_value = sum(q.total_cost for q in v.quotes)
+            else:
+                avg_price = 0
+                total_value = 0
+
+            discount_info = ""
+            if v.discount_code:
+                discount_info = f"<span class='discount-code'>{ReportService._escape_html(v.discount_code)}</span> ({v.discount}%)"
+
+            rows.append([
+                ReportService._escape_html(v.name),
+                v.currency,
+                str(quote_count),
+                f"${avg_price:.2f}" if quote_count > 0 else "-",
+                f"${total_value:.2f}" if quote_count > 0 else "-",
+                discount_info or "-",
+            ])
+
+        html += ReportService._html_table(headers, rows)
+
+        # Currency breakdown
+        currency_stats: Dict[str, Dict[str, Any]] = {}
+        for v in vendors:
+            if v.currency not in currency_stats:
+                currency_stats[v.currency] = {"vendors": 0, "quotes": 0, "total": 0.0}
+            currency_stats[v.currency]["vendors"] += 1
+            currency_stats[v.currency]["quotes"] += len(v.quotes)
+            currency_stats[v.currency]["total"] += sum(q.total_cost for q in v.quotes)
+
+        html += "<h2>Currency Breakdown</h2>\n"
+        headers = ["Currency", "Vendors", "Quotes", "Total Value (USD)"]
+        rows = []
+        for currency, stats in sorted(currency_stats.items()):
+            rows.append([
+                currency,
+                str(stats["vendors"]),
+                str(stats["quotes"]),
+                f"${stats['total']:.2f}",
+            ])
+        html += ReportService._html_table(headers, rows)
+
+        html += ReportService._html_footer()
+        return html
+
+    @staticmethod
+    def generate_report(
+        session: Session,
+        preset: str,
+        output_file: Optional[str] = None,
+        **kwargs
+    ) -> str:
+        """
+        Generate a report using the specified preset.
+
+        Args:
+            session: Database session
+            preset: Report preset ('price-comparison', 'purchase-summary', 'vendor-analysis')
+            output_file: Optional output file path
+            **kwargs: Additional arguments for specific reports
+
+        Returns:
+            HTML string (or file path if output_file specified)
+        """
+        if preset == "price-comparison":
+            html = ReportService.price_comparison_report(
+                session, filter_term=kwargs.get("filter_term")
+            )
+        elif preset == "purchase-summary":
+            html = ReportService.purchase_summary_report(session)
+        elif preset == "vendor-analysis":
+            html = ReportService.vendor_analysis_report(session)
+        else:
+            raise ValidationError(
+                f"Unknown report preset: {preset}. "
+                "Valid options: price-comparison, purchase-summary, vendor-analysis"
+            )
+
+        if output_file:
+            output_path = Path(output_file)
+            output_path.write_text(html, encoding="utf-8")
+            logger.info(f"Generated {preset} report: {output_file}")
+            return str(output_path)
+
+        return html

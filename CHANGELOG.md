@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.8]
+
+### Added
+
+- **HTML Report Generation** - Generate professional HTML reports for analysis
+  - `buylog report price-comparison [--filter TERM] [--output FILE]` - Compare prices across vendors
+    - Highlights best prices in green
+    - Shows potential savings per product
+    - Displays vendor discount codes
+  - `buylog report purchase-summary [--output FILE]` - Summary grouped by status
+    - Groups quotes by considering/ordered/received
+    - Totals per status and grand total
+    - Color-coded status rows
+  - `buylog report vendor-analysis [--output FILE]` - Vendor statistics
+    - Quote counts and average prices per vendor
+    - Currency breakdown
+    - Discount code availability
+  - Self-contained CSS (no external dependencies)
+  - Print-friendly styles
+  - Responsive tables
+
+- **New Services**
+  - `ReportService` - HTML report generation with three preset types
+
 ## [0.1.7]
 
 ### Added
@@ -53,6 +77,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.6]
 
 ### Added
+
 - **Data Management Features** - Import, export, backup, and deduplication
 
   - **CSV/JSON Import** - Bulk import quotes from files
@@ -92,6 +117,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.5]
 
 ### Added
+
 - **Workflow Features** - Support the full purchasing lifecycle
   - **Purchase Lists** - Group quotes into named shopping lists
     - Create lists: `buylog purchase-list create "My List" --description "Weekend shopping"`
@@ -136,6 +162,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.4]
 
 ### Added
+
 - **Price Comparison** - Compare prices across vendors for better purchasing decisions
   - Compare by exact product name: `buylog compare --product "iPhone 15"`
   - Compare by search term: `buylog compare --search "iPhone"` (matches all iPhone models)
@@ -169,6 +196,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.3]
 
 ### Added
+
 - **TUI Enhancements** - Improved daily usability
   - **Tab Switching** - `Ctrl+1-6` to switch tabs directly
   - **Vim-style Navigation** - `j/k` for rows, `h/l` for tabs
@@ -180,6 +208,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.2]
 
 ### Added
+
 - **Quote Analysis Features** - Tools for making better purchasing decisions
   - **Best Price Detection** - Automatically identifies lowest price per product
   - **Total Cost Calculation** - Includes discount, shipping, and tax in price comparison
@@ -223,6 +252,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.1]
 
 ### Added
+
 - **Textual TUI** - Interactive terminal user interface (`buylog tui`)
   - Tabbed interface for Brands, Products, Vendors, Quotes, and Forex
   - DataTables with row selection and keyboard navigation
@@ -238,9 +268,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - 21 sample quotes with currency conversion
 
 ### Changed
+
 - Default log level changed from DEBUG to INFO (reduces SQLAlchemy noise)
 
 ### Removed
+
 - **Web interface** - Removed FastAPI/HTMX web UI (`web.py`)
 - **Pydantic schemas** - Removed `schemas.py` (was only used by web interface)
 - **Dependencies** - Removed `fastapi`, `jinja2`, `pydantic` from requirements
@@ -248,6 +280,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.0]
 
 ### Added
+
 - Command Line Interface with CRUD operations
 - SQLAlchemy ORM models (Brand, Product, Vendor, Quote, Forex)
 - Service layer with business logic separation
