@@ -7,6 +7,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.9]
+
+### Added
+
+- **Excel Import/Export** - Full openpyxl integration for data management
+  - **Export to Excel**
+    - `buylog export -t vendors -o vendors.xlsx` - Export single table
+    - `buylog export -o database.xlsx` - Export all tables to single file
+    - Exports: brands, products, vendors, quotes, specifications, purchase_orders
+    - Auto-generated default filenames (e.g., `buylog-vendors.xlsx`)
+  - **Import from Excel**
+    - `buylog import vendors.xlsx -t vendors` - Import from Excel file
+    - Supports: vendors, products, quotes, specifications, purchase_orders
+    - Data validation dropdowns in templates
+    - Error reporting with row numbers
+  - **Template Generation**
+    - `buylog template -t vendors -f xlsx` - Generate Excel template
+    - `buylog template -t vendors -f yaml` - Generate YAML template
+    - `buylog template -t specs -f json` - Generate JSON template
+    - Auto-generated filenames (e.g., `vendors-template.xlsx`)
+    - Templates include example data and data validation
+
+- **Purchase Order Model** - Track committed purchases separately from quotes
+  - Fields: po_number, vendor, product, quantity, unit_price, currency
+  - Calculated fields: total_amount, shipping_cost, tax, grand_total
+  - Status tracking: pending, approved, ordered, shipped, received, cancelled
+  - Date fields: order_date, expected_delivery, actual_delivery
+  - Optional: invoice_number, notes, linked quote
+
+- **Specification System** - Define structured product attributes
+  - `Specification` model with name and description
+  - `SpecificationFeature` - Define features with data types (text/number/boolean)
+  - `ProductFeature` - Store feature values for products
+  - Support for units, required flags, min/max validation
+  - Products can be linked to specifications
+
+- **Enhanced Vendor Fields** - Extended contact and business information
+  - Contact: contact_person, email, phone, website
+  - Address: address_line1, address_line2, city, state, postal_code, country
+  - Business: tax_id, payment_terms
+
+- **TUI Enhancements**
+  - New **Purchase Orders** tab (Ctrl+9)
+  - New **Specifications** tab (Ctrl+0)
+  - Fullscreen forms for all data entry (replaces modal dialogs)
+
+- **New Services**
+  - `PurchaseOrderService` - PO CRUD, status transitions, create from quote
+  - `SpecificationService` - Specification and feature management
+  - `ProductFeatureService` - Product feature value management
+
+- **Database Migration** - Automatic schema updates
+  - `buylog migrate` - Apply pending migrations
+  - `buylog migrate --dry-run` - Preview SQL without executing
+
 ## [0.1.8]
 
 ### Added

@@ -1,5 +1,5 @@
 .PHONY: all test coverage diagram lint format typecheck clean \
-		build check publish-test publish version bump tag
+		build check publish-test publish version bump tag qa
 
 all: test
 
@@ -23,6 +23,8 @@ typecheck:
 
 format:
 	@uv run ruff format src/
+
+qa: test lint typecheck format
 
 clean:
 	@find . | grep -E "(__pycache__|\.pyc|\.pyo$/)" | xargs rm -rf

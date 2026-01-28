@@ -32,7 +32,15 @@ from .models import (
     Tag,
     EntityTag,
     Watchlist,
+    Specification,
+    SpecificationFeature,
+    ProductFeature,
+    PurchaseOrder,
     QUOTE_STATUSES,
+    SPEC_DATA_TYPES,
+    PO_STATUSES,
+    PO_STATUS_PENDING,
+    PO_STATUS_RECEIVED,
 )
 from .audit import AuditService
 
@@ -339,6 +347,19 @@ class VendorService:
         currency: str = "USD",
         discount_code: Optional[str] = None,
         discount: float = 0.0,
+        url: Optional[str] = None,
+        contact_person: Optional[str] = None,
+        email: Optional[str] = None,
+        phone: Optional[str] = None,
+        website: Optional[str] = None,
+        address_line1: Optional[str] = None,
+        address_line2: Optional[str] = None,
+        city: Optional[str] = None,
+        state: Optional[str] = None,
+        postal_code: Optional[str] = None,
+        country: Optional[str] = None,
+        tax_id: Optional[str] = None,
+        payment_terms: Optional[str] = None,
     ) -> Vendor:
         """
         Create a new vendor.
@@ -349,6 +370,19 @@ class VendorService:
             currency: Currency code (default: USD)
             discount_code: Optional discount code
             discount: Discount percentage (default: 0.0)
+            url: Optional vendor URL
+            contact_person: Optional contact person name
+            email: Optional email address
+            phone: Optional phone number
+            website: Optional website URL
+            address_line1: Optional street address line 1
+            address_line2: Optional street address line 2
+            city: Optional city
+            state: Optional state/province
+            postal_code: Optional postal/zip code
+            country: Optional country
+            tax_id: Optional tax ID number
+            payment_terms: Optional payment terms description
 
         Returns:
             Created Vendor instance
@@ -369,6 +403,8 @@ class VendorService:
             raise ValidationError("Currency code must be 3 characters (ISO 4217)")
         if not (0 <= discount <= 100):
             raise ValidationError("Discount must be between 0 and 100")
+        if email and "@" not in email:
+            raise ValidationError("Invalid email address format")
 
         # Check for duplicate
         existing = Vendor.by_name(session, name)
@@ -382,6 +418,19 @@ class VendorService:
                 currency=currency,
                 discount_code=discount_code,
                 discount=discount,
+                url=url,
+                contact_person=contact_person,
+                email=email,
+                phone=phone,
+                website=website,
+                address_line1=address_line1,
+                address_line2=address_line2,
+                city=city,
+                state=state,
+                postal_code=postal_code,
+                country=country,
+                tax_id=tax_id,
+                payment_terms=payment_terms,
             )
             session.add(vendor)
             session.commit()
@@ -1087,6 +1136,750 @@ class PriceAlertService:
             session.rollback()
             logger.error(f"Failed to deactivate alert: {e}")
             raise ServiceError(f"Failed to deactivate alert: {e}") from e
+
+
+class SpecificationService:
+    """Service for specification template management"""
+
+    @staticmethod
+    def create(
+        session: Session,
+        name: str,
+        description: Optional[str] = None,
+    ) -> Specification:
+        """
+        Create a new specification template.
+
+        Args:
+            session: Database session
+            name: Specification name
+            description: Optional description
+
+        Returns:
+            Created Specification instance
+
+        Raises:
+            ValidationError: If name is invalid
+            DuplicateError: If specification already exists
+        """
+        name = name.strip()
+        if not name:
+            raise ValidationError("Specification name cannot be empty")
+        if len(name) > 255:
+            raise ValidationError("Specification name too long (max 255 characters)")
+
+        existing = Specification.by_name(session, name)
+        if existing:
+            raise DuplicateError(f"Specification '{name}' already exists")
+
+        try:
+            spec = Specification(name=name, description=description)
+            session.add(spec)
+            session.commit()
+            logger.info(f"Created specification: {name}")
+            return spec
+        except IntegrityError as e:
+            session.rollback()
+            logger.error(f"Failed to create specification '{name}': {e}")
+            raise DuplicateError(f"Specification '{name}' already exists") from e
+        except SQLAlchemyError as e:
+            session.rollback()
+            logger.error(f"Database error creating specification '{name}': {e}")
+            raise ServiceError(f"Failed to create specification: {e}") from e
+
+    @staticmethod
+    def get_by_name(session: Session, name: str) -> Optional[Specification]:
+        """Get a specification by name."""
+        return Specification.by_name(session, name)
+
+    @staticmethod
+    def get_all(
+        session: Session,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> List[Specification]:
+        """Get all specifications with pagination."""
+        query = (
+            select(Specification)
+            .options(joinedload(Specification.features))
+            .limit(limit)
+            .offset(offset)
+        )
+        results = session.execute(query).unique().scalars().all()
+        return list(results)
+
+    @staticmethod
+    def add_feature(
+        session: Session,
+        spec_name: str,
+        feature_name: str,
+        data_type: str = "text",
+        unit: Optional[str] = None,
+        is_required: bool = False,
+        min_value: Optional[float] = None,
+        max_value: Optional[float] = None,
+    ) -> SpecificationFeature:
+        """
+        Add a feature to a specification.
+
+        Args:
+            session: Database session
+            spec_name: Specification name
+            feature_name: Feature name
+            data_type: Data type (text, number, boolean)
+            unit: Optional unit (e.g., "mm", "kg")
+            is_required: Whether the feature is required
+            min_value: Optional minimum value (for number type)
+            max_value: Optional maximum value (for number type)
+
+        Returns:
+            Created SpecificationFeature instance
+
+        Raises:
+            ValidationError: If input is invalid
+            NotFoundError: If specification not found
+        """
+        if not feature_name or not feature_name.strip():
+            raise ValidationError("Feature name cannot be empty")
+
+        if data_type not in SPEC_DATA_TYPES:
+            raise ValidationError(
+                f"Invalid data type '{data_type}'. Must be one of: {', '.join(SPEC_DATA_TYPES)}"
+            )
+
+        if min_value is not None and max_value is not None:
+            if min_value > max_value:
+                raise ValidationError("min_value cannot be greater than max_value")
+
+        spec = Specification.by_name(session, spec_name)
+        if not spec:
+            raise NotFoundError(f"Specification '{spec_name}' not found")
+
+        try:
+            feature = SpecificationFeature(
+                specification=spec,
+                name=feature_name.strip(),
+                data_type=data_type,
+                unit=unit,
+                is_required=1 if is_required else 0,
+                min_value=min_value,
+                max_value=max_value,
+            )
+            session.add(feature)
+            session.commit()
+            logger.info(
+                f"Added feature '{feature_name}' to specification '{spec_name}'"
+            )
+            return feature
+        except SQLAlchemyError as e:
+            session.rollback()
+            logger.error(f"Failed to add feature: {e}")
+            raise ServiceError(f"Failed to add feature: {e}") from e
+
+    @staticmethod
+    def delete(session: Session, name: str) -> None:
+        """
+        Delete a specification.
+
+        Args:
+            session: Database session
+            name: Specification name
+
+        Raises:
+            NotFoundError: If specification not found
+        """
+        spec = Specification.by_name(session, name)
+        if not spec:
+            raise NotFoundError(f"Specification '{name}' not found")
+
+        try:
+            session.delete(spec)
+            session.commit()
+            logger.info(f"Deleted specification: {name}")
+        except SQLAlchemyError as e:
+            session.rollback()
+            logger.error(f"Failed to delete specification '{name}': {e}")
+            raise ServiceError(f"Failed to delete specification: {e}") from e
+
+
+class SpecificationFeatureService:
+    """Service for managing specification features"""
+
+    @staticmethod
+    def update(
+        session: Session,
+        feature_id: int,
+        name: Optional[str] = None,
+        data_type: Optional[str] = None,
+        unit: Optional[str] = None,
+        is_required: Optional[bool] = None,
+        min_value: Optional[float] = None,
+        max_value: Optional[float] = None,
+    ) -> SpecificationFeature:
+        """
+        Update a specification feature.
+
+        Args:
+            session: Database session
+            feature_id: Feature ID
+            name: New name (optional)
+            data_type: New data type (optional)
+            unit: New unit (optional)
+            is_required: New required flag (optional)
+            min_value: New min value (optional)
+            max_value: New max value (optional)
+
+        Returns:
+            Updated SpecificationFeature instance
+
+        Raises:
+            NotFoundError: If feature not found
+            ValidationError: If input is invalid
+        """
+        feature = session.get(SpecificationFeature, feature_id)
+        if not feature:
+            raise NotFoundError(f"Feature with ID {feature_id} not found")
+
+        if name is not None:
+            if not name.strip():
+                raise ValidationError("Feature name cannot be empty")
+            feature.name = name.strip()
+
+        if data_type is not None:
+            if data_type not in SPEC_DATA_TYPES:
+                raise ValidationError(
+                    f"Invalid data type '{data_type}'. Must be one of: {', '.join(SPEC_DATA_TYPES)}"
+                )
+            feature.data_type = data_type
+
+        if unit is not None:
+            feature.unit = unit
+
+        if is_required is not None:
+            feature.is_required = 1 if is_required else 0
+
+        if min_value is not None:
+            feature.min_value = min_value
+
+        if max_value is not None:
+            feature.max_value = max_value
+
+        # Validate min/max relationship
+        if feature.min_value is not None and feature.max_value is not None:
+            if feature.min_value > feature.max_value:
+                raise ValidationError("min_value cannot be greater than max_value")
+
+        try:
+            session.commit()
+            logger.info(f"Updated feature {feature_id}")
+            return feature
+        except SQLAlchemyError as e:
+            session.rollback()
+            logger.error(f"Failed to update feature: {e}")
+            raise ServiceError(f"Failed to update feature: {e}") from e
+
+    @staticmethod
+    def delete(session: Session, feature_id: int) -> None:
+        """
+        Delete a specification feature.
+
+        Args:
+            session: Database session
+            feature_id: Feature ID
+
+        Raises:
+            NotFoundError: If feature not found
+        """
+        feature = session.get(SpecificationFeature, feature_id)
+        if not feature:
+            raise NotFoundError(f"Feature with ID {feature_id} not found")
+
+        try:
+            session.delete(feature)
+            session.commit()
+            logger.info(f"Deleted feature {feature_id}")
+        except SQLAlchemyError as e:
+            session.rollback()
+            logger.error(f"Failed to delete feature: {e}")
+            raise ServiceError(f"Failed to delete feature: {e}") from e
+
+
+class ProductFeatureService:
+    """Service for managing product feature values"""
+
+    @staticmethod
+    def set_value(
+        session: Session,
+        product_name: str,
+        feature_id: int,
+        value: Any,
+    ) -> ProductFeature:
+        """
+        Set a feature value for a product.
+
+        Args:
+            session: Database session
+            product_name: Product name
+            feature_id: SpecificationFeature ID
+            value: Value to set (type depends on feature data_type)
+
+        Returns:
+            Created or updated ProductFeature instance
+
+        Raises:
+            NotFoundError: If product or feature not found
+            ValidationError: If value doesn't match feature data type or constraints
+        """
+        product = Product.by_name(session, product_name)
+        if not product:
+            raise NotFoundError(f"Product '{product_name}' not found")
+
+        feature = session.get(SpecificationFeature, feature_id)
+        if not feature:
+            raise NotFoundError(f"Feature with ID {feature_id} not found")
+
+        # Validate value against data type
+        value_text = None
+        value_number = None
+        value_boolean = None
+
+        if feature.data_type == "text":
+            if value is not None and not isinstance(value, str):
+                raise ValidationError(f"Feature '{feature.name}' requires a text value")
+            value_text = value
+        elif feature.data_type == "number":
+            if value is not None:
+                try:
+                    value_number = float(value)
+                except (TypeError, ValueError):
+                    raise ValidationError(
+                        f"Feature '{feature.name}' requires a numeric value"
+                    )
+
+                # Validate min/max
+                if feature.min_value is not None and value_number < feature.min_value:
+                    raise ValidationError(
+                        f"Value {value_number} is below minimum {feature.min_value}"
+                    )
+                if feature.max_value is not None and value_number > feature.max_value:
+                    raise ValidationError(
+                        f"Value {value_number} exceeds maximum {feature.max_value}"
+                    )
+        elif feature.data_type == "boolean":
+            if value is not None:
+                if isinstance(value, bool):
+                    value_boolean = 1 if value else 0
+                elif isinstance(value, int):
+                    value_boolean = 1 if value else 0
+                else:
+                    raise ValidationError(
+                        f"Feature '{feature.name}' requires a boolean value"
+                    )
+
+        try:
+            # Check for existing value
+            existing = session.execute(
+                select(ProductFeature).where(
+                    ProductFeature.product_id == product.id,
+                    ProductFeature.specification_feature_id == feature_id,
+                )
+            ).scalar_one_or_none()
+
+            if existing:
+                existing.value_text = value_text
+                existing.value_number = value_number
+                existing.value_boolean = value_boolean
+                pf = existing
+            else:
+                pf = ProductFeature(
+                    product=product,
+                    specification_feature=feature,
+                    value_text=value_text,
+                    value_number=value_number,
+                    value_boolean=value_boolean,
+                )
+                session.add(pf)
+
+            session.commit()
+            logger.info(f"Set feature '{feature.name}' for product '{product_name}'")
+            return pf
+        except SQLAlchemyError as e:
+            session.rollback()
+            logger.error(f"Failed to set feature value: {e}")
+            raise ServiceError(f"Failed to set feature value: {e}") from e
+
+    @staticmethod
+    def get_features(session: Session, product_name: str) -> List[ProductFeature]:
+        """
+        Get all feature values for a product.
+
+        Args:
+            session: Database session
+            product_name: Product name
+
+        Returns:
+            List of ProductFeature instances
+
+        Raises:
+            NotFoundError: If product not found
+        """
+        product = Product.by_name(session, product_name)
+        if not product:
+            raise NotFoundError(f"Product '{product_name}' not found")
+
+        results = (
+            session.execute(
+                select(ProductFeature)
+                .options(joinedload(ProductFeature.specification_feature))
+                .where(ProductFeature.product_id == product.id)
+            )
+            .unique()
+            .scalars()
+            .all()
+        )
+        return list(results)
+
+    @staticmethod
+    def validate_required(session: Session, product_name: str) -> List[str]:
+        """
+        Validate that all required features have values for a product.
+
+        Args:
+            session: Database session
+            product_name: Product name
+
+        Returns:
+            List of missing required feature names
+
+        Raises:
+            NotFoundError: If product not found
+        """
+        product = Product.by_name(session, product_name)
+        if not product:
+            raise NotFoundError(f"Product '{product_name}' not found")
+
+        if not product.specification:
+            return []
+
+        # Get all required features for the specification
+        required_features = (
+            session.execute(
+                select(SpecificationFeature).where(
+                    SpecificationFeature.specification_id == product.specification_id,
+                    SpecificationFeature.is_required == 1,
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+        # Get existing feature values for the product
+        existing_feature_ids = {
+            pf.specification_feature_id
+            for pf in session.execute(
+                select(ProductFeature).where(ProductFeature.product_id == product.id)
+            )
+            .scalars()
+            .all()
+        }
+
+        missing = []
+        for feature in required_features:
+            if feature.id not in existing_feature_ids:
+                missing.append(feature.name)
+
+        return missing
+
+
+class PurchaseOrderService:
+    """Service for purchase order management"""
+
+    @staticmethod
+    def create(
+        session: Session,
+        po_number: str,
+        vendor_name: str,
+        product_name: str,
+        unit_price: float,
+        quantity: int = 1,
+        currency: str = "USD",
+        quote_id: Optional[int] = None,
+        order_date: Optional[datetime.date] = None,
+        expected_delivery: Optional[datetime.date] = None,
+        shipping_cost: Optional[float] = None,
+        tax: Optional[float] = None,
+        invoice_number: Optional[str] = None,
+        notes: Optional[str] = None,
+        status: str = PO_STATUS_PENDING,
+    ) -> PurchaseOrder:
+        """
+        Create a new purchase order.
+
+        Args:
+            session: Database session
+            po_number: Unique PO number
+            vendor_name: Vendor name
+            product_name: Product name
+            unit_price: Price per unit
+            quantity: Number of units (default: 1)
+            currency: Currency code (default: USD)
+            quote_id: Optional associated quote ID
+            order_date: Optional order date
+            expected_delivery: Optional expected delivery date
+            shipping_cost: Optional shipping cost
+            tax: Optional tax amount
+            invoice_number: Optional invoice number
+            notes: Optional notes
+            status: Initial status (default: pending)
+
+        Returns:
+            Created PurchaseOrder instance
+
+        Raises:
+            ValidationError: If input is invalid
+            DuplicateError: If PO number already exists
+            NotFoundError: If vendor or product not found
+        """
+        # Validate input
+        po_number = po_number.strip()
+        if not po_number:
+            raise ValidationError("PO number cannot be empty")
+
+        if status not in PO_STATUSES:
+            raise ValidationError(
+                f"Invalid status '{status}'. Must be one of: {', '.join(PO_STATUSES)}"
+            )
+
+        if unit_price < 0:
+            raise ValidationError("Unit price cannot be negative")
+
+        if quantity < 1:
+            raise ValidationError("Quantity must be at least 1")
+
+        # Get vendor
+        vendor = Vendor.by_name(session, vendor_name)
+        if not vendor:
+            raise NotFoundError(f"Vendor '{vendor_name}' not found")
+
+        # Get product
+        product = Product.by_name(session, product_name)
+        if not product:
+            raise NotFoundError(f"Product '{product_name}' not found")
+
+        # Check for duplicate PO number
+        existing = session.execute(
+            select(PurchaseOrder).where(PurchaseOrder.po_number == po_number)
+        ).scalar_one_or_none()
+        if existing:
+            raise DuplicateError(f"PO number '{po_number}' already exists")
+
+        # Compute totals
+        total_amount = unit_price * quantity
+        grand_total = total_amount + (shipping_cost or 0.0) + (tax or 0.0)
+
+        try:
+            po = PurchaseOrder(
+                po_number=po_number,
+                vendor_id=vendor.id,
+                product_id=product.id,
+                quote_id=quote_id,
+                unit_price=unit_price,
+                quantity=quantity,
+                currency=currency.upper(),
+                total_amount=total_amount,
+                shipping_cost=shipping_cost,
+                tax=tax,
+                grand_total=grand_total,
+                order_date=order_date,
+                expected_delivery=expected_delivery,
+                invoice_number=invoice_number,
+                notes=notes,
+                status=status,
+            )
+            session.add(po)
+            session.commit()
+            logger.info(f"Created purchase order: {po_number}")
+            return po
+        except IntegrityError as e:
+            session.rollback()
+            logger.error(f"Failed to create PO '{po_number}': {e}")
+            raise DuplicateError(f"PO number '{po_number}' already exists") from e
+        except SQLAlchemyError as e:
+            session.rollback()
+            logger.error(f"Database error creating PO '{po_number}': {e}")
+            raise ServiceError(f"Failed to create purchase order: {e}") from e
+
+    @staticmethod
+    def create_from_quote(
+        session: Session,
+        po_number: str,
+        quote_id: int,
+        quantity: int = 1,
+        order_date: Optional[datetime.date] = None,
+        expected_delivery: Optional[datetime.date] = None,
+        shipping_cost: Optional[float] = None,
+        tax: Optional[float] = None,
+        notes: Optional[str] = None,
+    ) -> PurchaseOrder:
+        """
+        Create a purchase order from an existing quote.
+
+        Args:
+            session: Database session
+            po_number: Unique PO number
+            quote_id: Quote ID to create PO from
+            quantity: Number of units (default: 1)
+            order_date: Optional order date
+            expected_delivery: Optional expected delivery date
+            shipping_cost: Optional shipping cost (overrides quote if provided)
+            tax: Optional tax amount
+            notes: Optional notes
+
+        Returns:
+            Created PurchaseOrder instance
+
+        Raises:
+            NotFoundError: If quote not found
+            ValidationError: If input is invalid
+            DuplicateError: If PO number already exists
+        """
+        quote = session.get(Quote, quote_id)
+        if not quote:
+            raise NotFoundError(f"Quote with ID {quote_id} not found")
+
+        # Use quote values, with optional overrides
+        effective_shipping = (
+            shipping_cost if shipping_cost is not None else quote.shipping_cost
+        )
+
+        return PurchaseOrderService.create(
+            session=session,
+            po_number=po_number,
+            vendor_name=quote.vendor.name,
+            product_name=quote.product.name,
+            unit_price=quote.value,
+            quantity=quantity,
+            currency=quote.currency,
+            quote_id=quote_id,
+            order_date=order_date,
+            expected_delivery=expected_delivery,
+            shipping_cost=effective_shipping,
+            tax=tax,
+            notes=notes,
+        )
+
+    @staticmethod
+    def update_status(
+        session: Session,
+        po_number: str,
+        new_status: str,
+        actual_delivery: Optional[datetime.date] = None,
+    ) -> PurchaseOrder:
+        """
+        Update the status of a purchase order.
+
+        Args:
+            session: Database session
+            po_number: PO number
+            new_status: New status
+            actual_delivery: Optional actual delivery date (auto-set if status is 'received')
+
+        Returns:
+            Updated PurchaseOrder instance
+
+        Raises:
+            NotFoundError: If PO not found
+            ValidationError: If status is invalid
+        """
+        if new_status not in PO_STATUSES:
+            raise ValidationError(
+                f"Invalid status '{new_status}'. Must be one of: {', '.join(PO_STATUSES)}"
+            )
+
+        po = session.execute(
+            select(PurchaseOrder).where(PurchaseOrder.po_number == po_number)
+        ).scalar_one_or_none()
+        if not po:
+            raise NotFoundError(f"Purchase order '{po_number}' not found")
+
+        try:
+            po.status = new_status
+
+            # Auto-set actual delivery date when status is received
+            if new_status == PO_STATUS_RECEIVED:
+                if actual_delivery:
+                    po.actual_delivery = actual_delivery
+                elif not po.actual_delivery:
+                    po.actual_delivery = datetime.date.today()
+
+            session.commit()
+            logger.info(f"Updated PO '{po_number}' status to '{new_status}'")
+            return po
+        except SQLAlchemyError as e:
+            session.rollback()
+            logger.error(f"Failed to update PO status: {e}")
+            raise ServiceError(f"Failed to update PO status: {e}") from e
+
+    @staticmethod
+    def get_by_po_number(session: Session, po_number: str) -> Optional[PurchaseOrder]:
+        """Get a purchase order by PO number."""
+        return (
+            session.execute(
+                select(PurchaseOrder)
+                .options(
+                    joinedload(PurchaseOrder.vendor),
+                    joinedload(PurchaseOrder.product),
+                    joinedload(PurchaseOrder.quote),
+                )
+                .where(PurchaseOrder.po_number == po_number)
+            )
+            .unique()
+            .scalar_one_or_none()
+        )
+
+    @staticmethod
+    def get_all(
+        session: Session,
+        status: Optional[str] = None,
+        vendor_name: Optional[str] = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> List[PurchaseOrder]:
+        """
+        Get all purchase orders with optional filtering.
+
+        Args:
+            session: Database session
+            status: Optional status filter
+            vendor_name: Optional vendor name filter
+            limit: Maximum number of results
+            offset: Number of results to skip
+
+        Returns:
+            List of PurchaseOrder instances
+        """
+        query = select(PurchaseOrder).options(
+            joinedload(PurchaseOrder.vendor),
+            joinedload(PurchaseOrder.product),
+        )
+
+        if status:
+            if status not in PO_STATUSES:
+                raise ValidationError(
+                    f"Invalid status '{status}'. Must be one of: {', '.join(PO_STATUSES)}"
+                )
+            query = query.where(PurchaseOrder.status == status)
+
+        if vendor_name:
+            vendor = Vendor.by_name(session, vendor_name)
+            if vendor:
+                query = query.where(PurchaseOrder.vendor_id == vendor.id)
+
+        query = query.order_by(PurchaseOrder.created_at.desc())
+        query = query.limit(limit).offset(offset)
+
+        results = session.execute(query).unique().scalars().all()
+        return list(results)
 
 
 class ComparisonService:

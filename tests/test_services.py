@@ -12,7 +12,7 @@ from buylog.services import (
     DuplicateError,
     NotFoundError,
 )
-from buylog.models import Brand, Product, Vendor, Quote, Forex
+from buylog.models import Brand, Product, Vendor, Quote, Forex, Specification
 
 
 # BrandService Tests
@@ -185,6 +185,52 @@ def test_vendor_service_create_normalizes_currency(dbsession):
     assert vendor.currency == "EUR"
 
 
+def test_vendor_service_create_with_enhanced_fields(dbsession):
+    """Test creating vendor with all enhanced fields"""
+    vendor = VendorService.create(
+        dbsession,
+        "Acme Corp",
+        currency="USD",
+        contact_person="John Smith",
+        email="john@acme.com",
+        phone="+1-555-1234",
+        website="https://acme.com",
+        address_line1="123 Main St",
+        address_line2="Suite 100",
+        city="New York",
+        state="NY",
+        postal_code="10001",
+        country="USA",
+        tax_id="12-3456789",
+        payment_terms="Net 30",
+    )
+
+    assert vendor.id is not None
+    assert vendor.contact_person == "John Smith"
+    assert vendor.email == "john@acme.com"
+    assert vendor.phone == "+1-555-1234"
+    assert vendor.website == "https://acme.com"
+    assert vendor.address_line1 == "123 Main St"
+    assert vendor.address_line2 == "Suite 100"
+    assert vendor.city == "New York"
+    assert vendor.state == "NY"
+    assert vendor.postal_code == "10001"
+    assert vendor.country == "USA"
+    assert vendor.tax_id == "12-3456789"
+    assert vendor.payment_terms == "Net 30"
+
+
+def test_vendor_service_create_validates_email(dbsession):
+    """Test email validation in vendor service"""
+    with pytest.raises(ValidationError, match="Invalid email"):
+        VendorService.create(
+            dbsession,
+            "Bad Email Vendor",
+            currency="USD",
+            email="not-an-email",
+        )
+
+
 # QuoteService Tests
 def test_quote_service_create(dbsession):
     """Test creating a quote"""
@@ -317,3 +363,533 @@ def test_forex_service_get_latest(dbsession):
 
     assert latest.usd_per_unit == 1.090
     assert latest.date == datetime.date(2025, 10, 17)
+
+
+# SpecificationService Tests
+def test_specification_service_create(dbsession):
+    """Test creating a specification"""
+    from buylog.services import SpecificationService
+
+    spec = SpecificationService.create(
+        dbsession, "Camera Specs", description="Camera specifications"
+    )
+
+    assert spec.id is not None
+    assert spec.name == "Camera Specs"
+    assert spec.description == "Camera specifications"
+
+
+def test_specification_service_create_duplicate(dbsession):
+    """Test creating duplicate specification raises error"""
+    from buylog.services import SpecificationService
+
+    SpecificationService.create(dbsession, "Camera Specs")
+    with pytest.raises(DuplicateError, match="already exists"):
+        SpecificationService.create(dbsession, "Camera Specs")
+
+
+def test_specification_service_create_empty_name(dbsession):
+    """Test creating specification with empty name raises error"""
+    from buylog.services import SpecificationService
+
+    with pytest.raises(ValidationError, match="cannot be empty"):
+        SpecificationService.create(dbsession, "")
+
+
+def test_specification_service_add_feature(dbsession):
+    """Test adding feature to specification"""
+    from buylog.services import SpecificationService
+
+    SpecificationService.create(dbsession, "Camera Specs")
+    feature = SpecificationService.add_feature(
+        dbsession,
+        "Camera Specs",
+        "Resolution",
+        data_type="number",
+        unit="MP",
+        is_required=True,
+        min_value=1.0,
+        max_value=200.0,
+    )
+
+    assert feature.id is not None
+    assert feature.name == "Resolution"
+    assert feature.data_type == "number"
+    assert feature.unit == "MP"
+    assert feature.is_required == 1
+    assert feature.min_value == 1.0
+    assert feature.max_value == 200.0
+
+
+def test_specification_service_add_feature_invalid_data_type(dbsession):
+    """Test adding feature with invalid data type raises error"""
+    from buylog.services import SpecificationService
+
+    SpecificationService.create(dbsession, "Camera Specs")
+    with pytest.raises(ValidationError, match="Invalid data type"):
+        SpecificationService.add_feature(
+            dbsession, "Camera Specs", "Resolution", data_type="invalid"
+        )
+
+
+def test_specification_service_add_feature_invalid_min_max(dbsession):
+    """Test adding feature with min > max raises error"""
+    from buylog.services import SpecificationService
+
+    SpecificationService.create(dbsession, "Camera Specs")
+    with pytest.raises(ValidationError, match="min_value cannot be greater"):
+        SpecificationService.add_feature(
+            dbsession,
+            "Camera Specs",
+            "Resolution",
+            data_type="number",
+            min_value=100.0,
+            max_value=10.0,
+        )
+
+
+def test_specification_service_add_feature_not_found(dbsession):
+    """Test adding feature to non-existent specification raises error"""
+    from buylog.services import SpecificationService
+
+    with pytest.raises(NotFoundError, match="not found"):
+        SpecificationService.add_feature(dbsession, "NonExistent", "Feature")
+
+
+def test_specification_service_get_all(dbsession):
+    """Test getting all specifications"""
+    from buylog.services import SpecificationService
+
+    SpecificationService.create(dbsession, "Camera Specs")
+    SpecificationService.create(dbsession, "Phone Specs")
+
+    specs = SpecificationService.get_all(dbsession)
+    assert len(specs) == 2
+
+
+def test_specification_service_delete(dbsession):
+    """Test deleting a specification"""
+    from buylog.services import SpecificationService
+
+    SpecificationService.create(dbsession, "Camera Specs")
+    SpecificationService.delete(dbsession, "Camera Specs")
+
+    spec = SpecificationService.get_by_name(dbsession, "Camera Specs")
+    assert spec is None
+
+
+# SpecificationFeatureService Tests
+def test_specification_feature_service_update(dbsession):
+    """Test updating a specification feature"""
+    from buylog.services import SpecificationService, SpecificationFeatureService
+
+    SpecificationService.create(dbsession, "Camera Specs")
+    feature = SpecificationService.add_feature(
+        dbsession, "Camera Specs", "Resolution", data_type="number"
+    )
+
+    updated = SpecificationFeatureService.update(
+        dbsession, feature.id, name="Max Resolution", unit="MP"
+    )
+
+    assert updated.name == "Max Resolution"
+    assert updated.unit == "MP"
+
+
+def test_specification_feature_service_update_not_found(dbsession):
+    """Test updating non-existent feature raises error"""
+    from buylog.services import SpecificationFeatureService
+
+    with pytest.raises(NotFoundError, match="not found"):
+        SpecificationFeatureService.update(dbsession, 9999, name="New Name")
+
+
+def test_specification_feature_service_delete(dbsession):
+    """Test deleting a specification feature"""
+    from buylog.services import SpecificationService, SpecificationFeatureService
+
+    SpecificationService.create(dbsession, "Camera Specs")
+    feature = SpecificationService.add_feature(
+        dbsession, "Camera Specs", "Resolution", data_type="number"
+    )
+
+    SpecificationFeatureService.delete(dbsession, feature.id)
+
+    spec = SpecificationService.get_by_name(dbsession, "Camera Specs")
+    assert len(spec.features) == 0
+
+
+# ProductFeatureService Tests
+def test_product_feature_service_set_value_text(dbsession):
+    """Test setting a text feature value"""
+    from buylog.services import SpecificationService, ProductFeatureService
+
+    SpecificationService.create(dbsession, "Phone Specs")
+    feature = SpecificationService.add_feature(
+        dbsession, "Phone Specs", "Color", data_type="text"
+    )
+    ProductService.create(dbsession, "iPhone 15", "Apple")
+
+    pf = ProductFeatureService.set_value(dbsession, "iPhone 15", feature.id, "Space Black")
+
+    assert pf.value_text == "Space Black"
+    assert pf.value == "Space Black"
+
+
+def test_product_feature_service_set_value_number(dbsession):
+    """Test setting a number feature value"""
+    from buylog.services import SpecificationService, ProductFeatureService
+
+    SpecificationService.create(dbsession, "Phone Specs")
+    feature = SpecificationService.add_feature(
+        dbsession,
+        "Phone Specs",
+        "Battery",
+        data_type="number",
+        unit="mAh",
+        min_value=1000.0,
+        max_value=10000.0,
+    )
+    ProductService.create(dbsession, "iPhone 15", "Apple")
+
+    pf = ProductFeatureService.set_value(dbsession, "iPhone 15", feature.id, 4000)
+
+    assert pf.value_number == 4000.0
+    assert pf.value == 4000.0
+
+
+def test_product_feature_service_set_value_number_validation(dbsession):
+    """Test number feature validation with min/max"""
+    from buylog.services import SpecificationService, ProductFeatureService
+
+    SpecificationService.create(dbsession, "Phone Specs")
+    feature = SpecificationService.add_feature(
+        dbsession,
+        "Phone Specs",
+        "Battery",
+        data_type="number",
+        min_value=1000.0,
+        max_value=10000.0,
+    )
+    ProductService.create(dbsession, "iPhone 15", "Apple")
+
+    with pytest.raises(ValidationError, match="below minimum"):
+        ProductFeatureService.set_value(dbsession, "iPhone 15", feature.id, 500)
+
+    with pytest.raises(ValidationError, match="exceeds maximum"):
+        ProductFeatureService.set_value(dbsession, "iPhone 15", feature.id, 20000)
+
+
+def test_product_feature_service_set_value_boolean(dbsession):
+    """Test setting a boolean feature value"""
+    from buylog.services import SpecificationService, ProductFeatureService
+
+    SpecificationService.create(dbsession, "Phone Specs")
+    feature = SpecificationService.add_feature(
+        dbsession, "Phone Specs", "Wireless Charging", data_type="boolean"
+    )
+    ProductService.create(dbsession, "iPhone 15", "Apple")
+
+    pf = ProductFeatureService.set_value(dbsession, "iPhone 15", feature.id, True)
+
+    assert pf.value_boolean == 1
+    assert pf.value is True
+
+
+def test_product_feature_service_get_features(dbsession):
+    """Test getting all features for a product"""
+    from buylog.services import SpecificationService, ProductFeatureService
+
+    SpecificationService.create(dbsession, "Phone Specs")
+    feature1 = SpecificationService.add_feature(
+        dbsession, "Phone Specs", "Color", data_type="text"
+    )
+    feature2 = SpecificationService.add_feature(
+        dbsession, "Phone Specs", "Battery", data_type="number"
+    )
+    ProductService.create(dbsession, "iPhone 15", "Apple")
+
+    ProductFeatureService.set_value(dbsession, "iPhone 15", feature1.id, "Black")
+    ProductFeatureService.set_value(dbsession, "iPhone 15", feature2.id, 4000)
+
+    features = ProductFeatureService.get_features(dbsession, "iPhone 15")
+    assert len(features) == 2
+
+
+def test_product_feature_service_validate_required(dbsession):
+    """Test validation of required features"""
+    from buylog.services import SpecificationService, ProductFeatureService
+    from buylog.models import Specification
+
+    SpecificationService.create(dbsession, "Phone Specs")
+    SpecificationService.add_feature(
+        dbsession, "Phone Specs", "Color", data_type="text", is_required=True
+    )
+    SpecificationService.add_feature(
+        dbsession, "Phone Specs", "Battery", data_type="number", is_required=True
+    )
+    SpecificationService.add_feature(
+        dbsession, "Phone Specs", "Optional", data_type="text", is_required=False
+    )
+
+    # Create product with specification
+    ProductService.create(dbsession, "iPhone 15", "Apple")
+    spec = Specification.by_name(dbsession, "Phone Specs")
+    product = Product.by_name(dbsession, "iPhone 15")
+    product.specification = spec
+    dbsession.commit()
+
+    # Initially, both required features are missing
+    missing = ProductFeatureService.validate_required(dbsession, "iPhone 15")
+    assert len(missing) == 2
+    assert "Color" in missing
+    assert "Battery" in missing
+
+
+# PurchaseOrderService Tests
+def test_purchase_order_service_create(dbsession):
+    """Test creating a purchase order"""
+    from buylog.services import PurchaseOrderService
+
+    VendorService.create(dbsession, "Amazon", currency="USD")
+    ProductService.create(dbsession, "iPhone 15", "Apple")
+
+    po = PurchaseOrderService.create(
+        dbsession,
+        po_number="PO-00001",
+        vendor_name="Amazon",
+        product_name="iPhone 15",
+        unit_price=999.99,
+        quantity=2,
+        shipping_cost=25.00,
+        tax=100.00,
+    )
+
+    assert po.id is not None
+    assert po.po_number == "PO-00001"
+    assert po.unit_price == 999.99
+    assert po.quantity == 2
+    assert po.total_amount == 999.99 * 2
+    assert po.grand_total == 999.99 * 2 + 25.00 + 100.00
+    assert po.status == "pending"
+
+
+def test_purchase_order_service_create_duplicate_po_number(dbsession):
+    """Test creating duplicate PO number raises error"""
+    from buylog.services import PurchaseOrderService
+
+    VendorService.create(dbsession, "Amazon", currency="USD")
+    ProductService.create(dbsession, "iPhone 15", "Apple")
+
+    PurchaseOrderService.create(
+        dbsession,
+        po_number="PO-DUPE",
+        vendor_name="Amazon",
+        product_name="iPhone 15",
+        unit_price=999.99,
+    )
+
+    with pytest.raises(DuplicateError, match="already exists"):
+        PurchaseOrderService.create(
+            dbsession,
+            po_number="PO-DUPE",
+            vendor_name="Amazon",
+            product_name="iPhone 15",
+            unit_price=888.88,
+        )
+
+
+def test_purchase_order_service_create_invalid_status(dbsession):
+    """Test creating PO with invalid status raises error"""
+    from buylog.services import PurchaseOrderService
+
+    VendorService.create(dbsession, "Amazon", currency="USD")
+    ProductService.create(dbsession, "iPhone 15", "Apple")
+
+    with pytest.raises(ValidationError, match="Invalid status"):
+        PurchaseOrderService.create(
+            dbsession,
+            po_number="PO-00001",
+            vendor_name="Amazon",
+            product_name="iPhone 15",
+            unit_price=999.99,
+            status="invalid_status",
+        )
+
+
+def test_purchase_order_service_create_from_quote(dbsession):
+    """Test creating PO from existing quote"""
+    from buylog.services import PurchaseOrderService
+
+    VendorService.create(dbsession, "Amazon", currency="USD")
+    ProductService.create(dbsession, "iPhone 15", "Apple")
+    quote = QuoteService.create(dbsession, "Amazon", "iPhone 15", 999.99)
+
+    po = PurchaseOrderService.create_from_quote(
+        dbsession,
+        po_number="PO-FROM-QUOTE",
+        quote_id=quote.id,
+        quantity=3,
+    )
+
+    assert po.quote_id == quote.id
+    assert po.unit_price == quote.value
+    assert po.quantity == 3
+    assert po.vendor.name == "Amazon"
+    assert po.product.name == "iPhone 15"
+
+
+def test_purchase_order_service_create_from_quote_not_found(dbsession):
+    """Test creating PO from non-existent quote raises error"""
+    from buylog.services import PurchaseOrderService
+
+    with pytest.raises(NotFoundError, match="Quote with ID"):
+        PurchaseOrderService.create_from_quote(
+            dbsession,
+            po_number="PO-00001",
+            quote_id=9999,
+        )
+
+
+def test_purchase_order_service_update_status(dbsession):
+    """Test updating PO status"""
+    from buylog.services import PurchaseOrderService
+
+    VendorService.create(dbsession, "Amazon", currency="USD")
+    ProductService.create(dbsession, "iPhone 15", "Apple")
+
+    PurchaseOrderService.create(
+        dbsession,
+        po_number="PO-STATUS",
+        vendor_name="Amazon",
+        product_name="iPhone 15",
+        unit_price=999.99,
+    )
+
+    po = PurchaseOrderService.update_status(dbsession, "PO-STATUS", "approved")
+    assert po.status == "approved"
+
+    po = PurchaseOrderService.update_status(dbsession, "PO-STATUS", "ordered")
+    assert po.status == "ordered"
+
+
+def test_purchase_order_service_update_status_received_auto_delivery(dbsession):
+    """Test updating status to received auto-sets actual_delivery"""
+    import datetime
+    from buylog.services import PurchaseOrderService
+
+    VendorService.create(dbsession, "Amazon", currency="USD")
+    ProductService.create(dbsession, "iPhone 15", "Apple")
+
+    PurchaseOrderService.create(
+        dbsession,
+        po_number="PO-RECEIVED",
+        vendor_name="Amazon",
+        product_name="iPhone 15",
+        unit_price=999.99,
+    )
+
+    po = PurchaseOrderService.update_status(dbsession, "PO-RECEIVED", "received")
+    assert po.status == "received"
+    assert po.actual_delivery == datetime.date.today()
+
+
+def test_purchase_order_service_update_status_invalid(dbsession):
+    """Test updating PO with invalid status raises error"""
+    from buylog.services import PurchaseOrderService
+
+    VendorService.create(dbsession, "Amazon", currency="USD")
+    ProductService.create(dbsession, "iPhone 15", "Apple")
+
+    PurchaseOrderService.create(
+        dbsession,
+        po_number="PO-INVALID",
+        vendor_name="Amazon",
+        product_name="iPhone 15",
+        unit_price=999.99,
+    )
+
+    with pytest.raises(ValidationError, match="Invalid status"):
+        PurchaseOrderService.update_status(dbsession, "PO-INVALID", "bad_status")
+
+
+def test_purchase_order_service_get_by_po_number(dbsession):
+    """Test getting PO by PO number"""
+    from buylog.services import PurchaseOrderService
+
+    VendorService.create(dbsession, "Amazon", currency="USD")
+    ProductService.create(dbsession, "iPhone 15", "Apple")
+
+    PurchaseOrderService.create(
+        dbsession,
+        po_number="PO-GET",
+        vendor_name="Amazon",
+        product_name="iPhone 15",
+        unit_price=999.99,
+    )
+
+    po = PurchaseOrderService.get_by_po_number(dbsession, "PO-GET")
+    assert po is not None
+    assert po.po_number == "PO-GET"
+
+    po = PurchaseOrderService.get_by_po_number(dbsession, "PO-NONEXISTENT")
+    assert po is None
+
+
+def test_purchase_order_service_get_all(dbsession):
+    """Test getting all POs"""
+    from buylog.services import PurchaseOrderService
+
+    VendorService.create(dbsession, "Amazon", currency="USD")
+    ProductService.create(dbsession, "iPhone 15", "Apple")
+
+    PurchaseOrderService.create(
+        dbsession,
+        po_number="PO-LIST-1",
+        vendor_name="Amazon",
+        product_name="iPhone 15",
+        unit_price=999.99,
+    )
+    PurchaseOrderService.create(
+        dbsession,
+        po_number="PO-LIST-2",
+        vendor_name="Amazon",
+        product_name="iPhone 15",
+        unit_price=888.88,
+    )
+
+    pos = PurchaseOrderService.get_all(dbsession)
+    assert len(pos) == 2
+
+
+def test_purchase_order_service_get_all_by_status(dbsession):
+    """Test getting POs by status"""
+    from buylog.services import PurchaseOrderService
+
+    VendorService.create(dbsession, "Amazon", currency="USD")
+    ProductService.create(dbsession, "iPhone 15", "Apple")
+
+    PurchaseOrderService.create(
+        dbsession,
+        po_number="PO-PENDING",
+        vendor_name="Amazon",
+        product_name="iPhone 15",
+        unit_price=999.99,
+        status="pending",
+    )
+    PurchaseOrderService.create(
+        dbsession,
+        po_number="PO-APPROVED",
+        vendor_name="Amazon",
+        product_name="iPhone 15",
+        unit_price=888.88,
+        status="approved",
+    )
+
+    pending = PurchaseOrderService.get_all(dbsession, status="pending")
+    assert len(pending) == 1
+    assert pending[0].po_number == "PO-PENDING"
+
+    approved = PurchaseOrderService.get_all(dbsession, status="approved")
+    assert len(approved) == 1
+    assert approved[0].po_number == "PO-APPROVED"

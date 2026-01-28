@@ -180,6 +180,317 @@ def test_vendor_add_product_creates_quote(dbsession):
     assert quote.discount == 5.0
 
 
+def test_vendor_enhanced_fields(dbsession):
+    """Test vendor with enhanced contact/address/payment fields"""
+    vendor = Vendor(
+        name="Acme Corp",
+        currency="USD",
+        contact_person="John Smith",
+        email="john@acme.com",
+        phone="+1-555-1234",
+        website="https://acme.com",
+        address_line1="123 Main St",
+        address_line2="Suite 100",
+        city="New York",
+        state="NY",
+        postal_code="10001",
+        country="USA",
+        tax_id="12-3456789",
+        payment_terms="Net 30",
+    )
+    dbsession.add(vendor)
+    dbsession.commit()
+
+    result = Vendor.by_name(dbsession, "Acme Corp")
+    assert result is not None
+    assert result.contact_person == "John Smith"
+    assert result.email == "john@acme.com"
+    assert result.phone == "+1-555-1234"
+    assert result.website == "https://acme.com"
+    assert result.address_line1 == "123 Main St"
+    assert result.address_line2 == "Suite 100"
+    assert result.city == "New York"
+    assert result.state == "NY"
+    assert result.postal_code == "10001"
+    assert result.country == "USA"
+    assert result.tax_id == "12-3456789"
+    assert result.payment_terms == "Net 30"
+
+
+def test_vendor_enhanced_fields_nullable(dbsession):
+    """Test all enhanced vendor fields can be null"""
+    vendor = Vendor(name="Minimal Vendor", currency="USD")
+    dbsession.add(vendor)
+    dbsession.commit()
+
+    result = Vendor.by_name(dbsession, "Minimal Vendor")
+    assert result is not None
+    assert result.contact_person is None
+    assert result.email is None
+    assert result.phone is None
+    assert result.website is None
+    assert result.address_line1 is None
+    assert result.address_line2 is None
+    assert result.city is None
+    assert result.state is None
+    assert result.postal_code is None
+    assert result.country is None
+    assert result.tax_id is None
+    assert result.payment_terms is None
+
+
+# Specification Tests
+def test_specification_creation(dbsession):
+    """Test specification can be created"""
+    from buylog.models import Specification
+
+    spec = Specification(name="Camera Specs", description="Camera product specifications")
+    dbsession.add(spec)
+    dbsession.commit()
+
+    result = Specification.by_name(dbsession, "Camera Specs")
+    assert result is not None
+    assert result.name == "Camera Specs"
+    assert result.description == "Camera product specifications"
+
+
+def test_specification_with_features(dbsession):
+    """Test specification with features"""
+    from buylog.models import Specification, SpecificationFeature
+
+    spec = Specification(name="Laptop Specs")
+    feature1 = SpecificationFeature(
+        specification=spec,
+        name="Screen Size",
+        data_type="number",
+        unit="inch",
+        is_required=1,
+        min_value=10.0,
+        max_value=20.0,
+    )
+    feature2 = SpecificationFeature(
+        specification=spec,
+        name="Brand Name",
+        data_type="text",
+        is_required=0,
+    )
+    dbsession.add_all([spec, feature1, feature2])
+    dbsession.commit()
+
+    assert len(spec.features) == 2
+    assert feature1.name == "Screen Size"
+    assert feature1.data_type == "number"
+    assert feature1.unit == "inch"
+    assert feature1.is_required == 1
+    assert feature1.min_value == 10.0
+    assert feature1.max_value == 20.0
+    assert feature2.name == "Brand Name"
+    assert feature2.data_type == "text"
+
+
+def test_product_with_specification(dbsession):
+    """Test product can have a specification"""
+    from buylog.models import Specification
+
+    spec = Specification(name="Phone Specs")
+    brand = Brand(name="Apple")
+    product = Product(name="iPhone 15", brand=brand, specification=spec)
+    dbsession.add_all([spec, brand, product])
+    dbsession.commit()
+
+    assert product.specification == spec
+    assert product in spec.products
+
+
+def test_product_feature_value(dbsession):
+    """Test product feature values"""
+    from buylog.models import Specification, SpecificationFeature, ProductFeature
+
+    spec = Specification(name="Phone Specs")
+    brand = Brand(name="Apple")
+    product = Product(name="iPhone 15", brand=brand, specification=spec)
+    feature = SpecificationFeature(
+        specification=spec,
+        name="Battery Capacity",
+        data_type="number",
+        unit="mAh",
+    )
+    dbsession.add_all([spec, brand, product, feature])
+    dbsession.flush()
+
+    pf = ProductFeature(
+        product=product,
+        specification_feature=feature,
+        value_number=4000.0,
+    )
+    dbsession.add(pf)
+    dbsession.commit()
+
+    assert pf.value == 4000.0
+    assert pf.specification_feature.name == "Battery Capacity"
+    assert pf in product.features
+
+
+def test_product_feature_value_property(dbsession):
+    """Test ProductFeature.value property returns correct typed value"""
+    from buylog.models import Specification, SpecificationFeature, ProductFeature
+
+    spec = Specification(name="Test Specs")
+    brand = Brand(name="Test Brand")
+    product = Product(name="Test Product", brand=brand, specification=spec)
+
+    text_feature = SpecificationFeature(specification=spec, name="Color", data_type="text")
+    number_feature = SpecificationFeature(specification=spec, name="Weight", data_type="number")
+    bool_feature = SpecificationFeature(specification=spec, name="Wireless", data_type="boolean")
+
+    dbsession.add_all([spec, brand, product, text_feature, number_feature, bool_feature])
+    dbsession.flush()
+
+    pf_text = ProductFeature(product=product, specification_feature=text_feature, value_text="Red")
+    pf_number = ProductFeature(product=product, specification_feature=number_feature, value_number=1.5)
+    pf_bool = ProductFeature(product=product, specification_feature=bool_feature, value_boolean=1)
+
+    dbsession.add_all([pf_text, pf_number, pf_bool])
+    dbsession.commit()
+
+    assert pf_text.value == "Red"
+    assert pf_number.value == 1.5
+    assert pf_bool.value is True
+
+
+# PurchaseOrder Tests
+def test_purchase_order_creation(dbsession):
+    """Test purchase order can be created"""
+    import datetime
+    from buylog.models import PurchaseOrder, PO_STATUS_PENDING
+
+    brand = Brand(name="Apple")
+    product = Product(name="iPhone 15", brand=brand)
+    vendor = Vendor(name="Amazon", currency="USD")
+    dbsession.add_all([brand, product, vendor])
+    dbsession.flush()
+
+    po = PurchaseOrder(
+        po_number="PO-00001",
+        vendor=vendor,
+        product=product,
+        unit_price=999.99,
+        quantity=2,
+        currency="USD",
+        total_amount=1999.98,
+        shipping_cost=25.00,
+        tax=100.00,
+        grand_total=2124.98,
+        status=PO_STATUS_PENDING,
+    )
+    dbsession.add(po)
+    dbsession.commit()
+
+    assert po.id is not None
+    assert po.po_number == "PO-00001"
+    assert po.vendor == vendor
+    assert po.product == product
+    assert po.unit_price == 999.99
+    assert po.quantity == 2
+    assert po.total_amount == 1999.98
+    assert po.grand_total == 2124.98
+    assert po.status == PO_STATUS_PENDING
+
+
+def test_purchase_order_with_quote(dbsession):
+    """Test purchase order can reference a quote"""
+    import datetime
+    from buylog.models import PurchaseOrder, PO_STATUS_ORDERED
+
+    brand = Brand(name="Apple")
+    product = Product(name="iPhone 15", brand=brand)
+    vendor = Vendor(name="Amazon", currency="USD")
+    quote = Quote(product=product, vendor=vendor, currency="USD", value=999.99)
+    dbsession.add_all([brand, product, vendor, quote])
+    dbsession.flush()
+
+    po = PurchaseOrder(
+        po_number="PO-00002",
+        vendor=vendor,
+        product=product,
+        quote=quote,
+        unit_price=quote.value,
+        quantity=1,
+        currency="USD",
+        total_amount=999.99,
+        grand_total=999.99,
+        status=PO_STATUS_ORDERED,
+    )
+    dbsession.add(po)
+    dbsession.commit()
+
+    assert po.quote == quote
+    assert po.quote_id == quote.id
+
+
+def test_purchase_order_repr(dbsession):
+    """Test purchase order string representation"""
+    from buylog.models import PurchaseOrder
+
+    brand = Brand(name="Apple")
+    product = Product(name="iPhone 15", brand=brand)
+    vendor = Vendor(name="Amazon", currency="USD")
+    dbsession.add_all([brand, product, vendor])
+    dbsession.flush()
+
+    po = PurchaseOrder(
+        po_number="PO-00003",
+        vendor=vendor,
+        product=product,
+        unit_price=999.99,
+        quantity=1,
+        currency="USD",
+        total_amount=999.99,
+        grand_total=999.99,
+        status="pending",
+    )
+    dbsession.add(po)
+    dbsession.commit()
+
+    assert repr(po) == "<PurchaseOrder(po_number='PO-00003', status='pending')>"
+
+
+def test_purchase_order_unique_po_number(dbsession):
+    """Test PO number must be unique"""
+    from buylog.models import PurchaseOrder
+
+    brand = Brand(name="Apple")
+    product = Product(name="iPhone 15", brand=brand)
+    vendor = Vendor(name="Amazon", currency="USD")
+    dbsession.add_all([brand, product, vendor])
+    dbsession.flush()
+
+    po1 = PurchaseOrder(
+        po_number="PO-UNIQUE",
+        vendor=vendor,
+        product=product,
+        unit_price=999.99,
+        quantity=1,
+        currency="USD",
+        total_amount=999.99,
+        grand_total=999.99,
+    )
+    po2 = PurchaseOrder(
+        po_number="PO-UNIQUE",
+        vendor=vendor,
+        product=product,
+        unit_price=888.88,
+        quantity=1,
+        currency="USD",
+        total_amount=888.88,
+        grand_total=888.88,
+    )
+    dbsession.add_all([po1, po2])
+
+    with pytest.raises(IntegrityError):
+        dbsession.commit()
+
+
 # Quote Tests
 def test_quote_creation(dbsession):
     """Test quote can be created with vendor and product"""

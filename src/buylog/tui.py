@@ -3,7 +3,7 @@
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
-from textual.screen import ModalScreen
+from textual.screen import ModalScreen, Screen
 from textual.widgets import (
     Button,
     DataTable,
@@ -43,6 +43,8 @@ from .services import (
     ComparisonService,
     PurchaseListService,
     WatchlistService,
+    SpecificationService,
+    PurchaseOrderService,
     DuplicateError,
     ValidationError,
     NotFoundError,
@@ -83,245 +85,340 @@ Base.metadata.create_all(engine)
 Session = Config.get_session_maker()
 
 
-class AddBrandModal(ModalScreen[str | None]):
-    """Modal for adding a new brand."""
+class AddBrandScreen(Screen[str | None]):
+    """Full-screen form for adding a new brand."""
 
-    BINDINGS = [Binding("escape", "cancel", "Cancel")]
+    BINDINGS = [
+        Binding("escape", "cancel", "Cancel", show=True),
+        Binding("ctrl+s", "save", "Save", show=True),
+    ]
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="modal-dialog"):
-            yield Label("Add Brand", id="modal-title")
-            yield Input(placeholder="Brand name", id="brand-name")
-            with Horizontal(id="modal-buttons"):
-                yield Button("Add", variant="primary", id="add-btn")
-                yield Button("Cancel", variant="default", id="cancel-btn")
+        yield Header()
+        with Vertical(id="fullscreen-form"):
+            yield Label("[bold]Add Brand[/bold]", id="form-title")
+            with Horizontal(classes="form-row"):
+                yield Label("Name *", classes="form-label")
+                yield Input(placeholder="Brand name", id="brand-name")
+            with Horizontal(id="form-buttons"):
+                yield Button("Save (Ctrl+S)", variant="primary", id="save-btn")
+                yield Button("Cancel (Esc)", variant="default", id="cancel-btn")
+        yield Footer()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "add-btn":
-            name_input = self.query_one("#brand-name", Input)
-            self.dismiss(name_input.value)
+        if event.button.id == "save-btn":
+            self._do_save()
         else:
             self.dismiss(None)
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
-        self.dismiss(event.value)
+        self._do_save()
+
+    def action_save(self) -> None:
+        self._do_save()
+
+    def _do_save(self) -> None:
+        name = self.query_one("#brand-name", Input).value
+        if not name:
+            self.notify("Brand name is required", severity="error")
+            return
+        self.dismiss(name)
 
     def action_cancel(self) -> None:
         self.dismiss(None)
 
 
-class AddProductModal(ModalScreen[tuple[str, str] | None]):
-    """Modal for adding a new product."""
+class AddProductScreen(Screen[tuple[str, str] | None]):
+    """Full-screen form for adding a new product."""
 
-    BINDINGS = [Binding("escape", "cancel", "Cancel")]
+    BINDINGS = [
+        Binding("escape", "cancel", "Cancel", show=True),
+        Binding("ctrl+s", "save", "Save", show=True),
+    ]
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="modal-dialog"):
-            yield Label("Add Product", id="modal-title")
-            yield Input(placeholder="Brand name", id="brand-name")
-            yield Input(placeholder="Product name", id="product-name")
-            with Horizontal(id="modal-buttons"):
-                yield Button("Add", variant="primary", id="add-btn")
-                yield Button("Cancel", variant="default", id="cancel-btn")
+        yield Header()
+        with Vertical(id="fullscreen-form"):
+            yield Label("[bold]Add Product[/bold]", id="form-title")
+            with Horizontal(classes="form-row"):
+                yield Label("Brand *", classes="form-label")
+                yield Input(placeholder="Brand name", id="brand-name")
+            with Horizontal(classes="form-row"):
+                yield Label("Product *", classes="form-label")
+                yield Input(placeholder="Product name", id="product-name")
+            with Horizontal(id="form-buttons"):
+                yield Button("Save (Ctrl+S)", variant="primary", id="save-btn")
+                yield Button("Cancel (Esc)", variant="default", id="cancel-btn")
+        yield Footer()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "add-btn":
-            brand = self.query_one("#brand-name", Input).value
-            product = self.query_one("#product-name", Input).value
-            self.dismiss((brand, product))
+        if event.button.id == "save-btn":
+            self._do_save()
         else:
             self.dismiss(None)
+
+    def action_save(self) -> None:
+        self._do_save()
+
+    def _do_save(self) -> None:
+        brand = self.query_one("#brand-name", Input).value
+        product = self.query_one("#product-name", Input).value
+        if not brand or not product:
+            self.notify("Brand and product names are required", severity="error")
+            return
+        self.dismiss((brand, product))
 
     def action_cancel(self) -> None:
         self.dismiss(None)
 
 
-class AddVendorModal(ModalScreen[tuple[str, str, str | None, float] | None]):
-    """Modal for adding a new vendor."""
+class AddQuoteScreen(Screen[tuple[str, str, str | None, float] | None]):
+    """Full-screen form for adding a new quote."""
 
-    BINDINGS = [Binding("escape", "cancel", "Cancel")]
+    BINDINGS = [
+        Binding("escape", "cancel", "Cancel", show=True),
+        Binding("ctrl+s", "save", "Save", show=True),
+    ]
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="modal-dialog"):
-            yield Label("Add Vendor", id="modal-title")
-            yield Input(placeholder="Vendor name", id="vendor-name")
-            yield Input(placeholder="Currency (default: USD)", id="currency")
-            yield Input(placeholder="Discount code (optional)", id="discount-code")
-            yield Input(placeholder="Discount % (default: 0)", id="discount")
-            with Horizontal(id="modal-buttons"):
-                yield Button("Add", variant="primary", id="add-btn")
-                yield Button("Cancel", variant="default", id="cancel-btn")
+        yield Header()
+        with Vertical(id="fullscreen-form"):
+            yield Label("[bold]Add Quote[/bold]", id="form-title")
+            with Horizontal(classes="form-row"):
+                yield Label("Vendor *", classes="form-label")
+                yield Input(placeholder="Vendor name", id="vendor-name")
+            with Horizontal(classes="form-row"):
+                yield Label("Product *", classes="form-label")
+                yield Input(placeholder="Product name", id="product-name")
+            with Horizontal(classes="form-row"):
+                yield Label("Brand", classes="form-label")
+                yield Input(placeholder="Brand (if new product)", id="brand-name")
+            with Horizontal(classes="form-row"):
+                yield Label("Price *", classes="form-label")
+                yield Input(placeholder="0.00", id="price")
+            with Horizontal(id="form-buttons"):
+                yield Button("Save (Ctrl+S)", variant="primary", id="save-btn")
+                yield Button("Cancel (Esc)", variant="default", id="cancel-btn")
+        yield Footer()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "add-btn":
-            name = self.query_one("#vendor-name", Input).value
-            currency = self.query_one("#currency", Input).value or "USD"
-            discount_code = self.query_one("#discount-code", Input).value or None
-            discount_str = self.query_one("#discount", Input).value
-            discount = float(discount_str) if discount_str else 0.0
-            self.dismiss((name, currency, discount_code, discount))
+        if event.button.id == "save-btn":
+            self._do_save()
         else:
             self.dismiss(None)
+
+    def action_save(self) -> None:
+        self._do_save()
+
+    def _do_save(self) -> None:
+        vendor = self.query_one("#vendor-name", Input).value
+        product = self.query_one("#product-name", Input).value
+        brand = self.query_one("#brand-name", Input).value or None
+        price_str = self.query_one("#price", Input).value
+        if not vendor or not product:
+            self.notify("Vendor and product are required", severity="error")
+            return
+        try:
+            price = float(price_str) if price_str else 0.0
+            self.dismiss((vendor, product, brand, price))
+        except ValueError:
+            self.notify("Invalid price", severity="error")
 
     def action_cancel(self) -> None:
         self.dismiss(None)
 
 
-class AddQuoteModal(ModalScreen[tuple[str, str, str | None, float] | None]):
-    """Modal for adding a new quote."""
+class AddForexScreen(Screen[tuple[str, float, str | None] | None]):
+    """Full-screen form for adding a forex rate."""
 
-    BINDINGS = [Binding("escape", "cancel", "Cancel")]
+    BINDINGS = [
+        Binding("escape", "cancel", "Cancel", show=True),
+        Binding("ctrl+s", "save", "Save", show=True),
+    ]
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="modal-dialog"):
-            yield Label("Add Quote", id="modal-title")
-            yield Input(placeholder="Vendor name", id="vendor-name")
-            yield Input(placeholder="Product name", id="product-name")
-            yield Input(placeholder="Brand name (if new product)", id="brand-name")
-            yield Input(placeholder="Price", id="price")
-            with Horizontal(id="modal-buttons"):
-                yield Button("Add", variant="primary", id="add-btn")
-                yield Button("Cancel", variant="default", id="cancel-btn")
+        yield Header()
+        with Vertical(id="fullscreen-form"):
+            yield Label("[bold]Add Forex Rate[/bold]", id="form-title")
+            with Horizontal(classes="form-row"):
+                yield Label("Currency *", classes="form-label")
+                yield Input(placeholder="Currency code (e.g., EUR)", id="code")
+            with Horizontal(classes="form-row"):
+                yield Label("Rate *", classes="form-label")
+                yield Input(placeholder="USD per unit (e.g., 1.085)", id="rate")
+            with Horizontal(classes="form-row"):
+                yield Label("Date", classes="form-label")
+                yield Input(placeholder="YYYY-MM-DD (optional)", id="date")
+            with Horizontal(id="form-buttons"):
+                yield Button("Save (Ctrl+S)", variant="primary", id="save-btn")
+                yield Button("Cancel (Esc)", variant="default", id="cancel-btn")
+        yield Footer()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "add-btn":
-            vendor = self.query_one("#vendor-name", Input).value
-            product = self.query_one("#product-name", Input).value
-            brand = self.query_one("#brand-name", Input).value or None
-            price_str = self.query_one("#price", Input).value
-            try:
-                price = float(price_str) if price_str else 0.0
-                self.dismiss((vendor, product, brand, price))
-            except ValueError:
-                self.notify("Invalid price", severity="error")
+        if event.button.id == "save-btn":
+            self._do_save()
         else:
             self.dismiss(None)
+
+    def action_save(self) -> None:
+        self._do_save()
+
+    def _do_save(self) -> None:
+        code = self.query_one("#code", Input).value.upper()
+        rate_str = self.query_one("#rate", Input).value
+        date_str = self.query_one("#date", Input).value or None
+        if not code:
+            self.notify("Currency code is required", severity="error")
+            return
+        try:
+            rate = float(rate_str) if rate_str else 0.0
+            self.dismiss((code, rate, date_str))
+        except ValueError:
+            self.notify("Invalid rate", severity="error")
 
     def action_cancel(self) -> None:
         self.dismiss(None)
 
 
-class AddForexModal(ModalScreen[tuple[str, float, str | None] | None]):
-    """Modal for adding a forex rate."""
+class AddAlertScreen(Screen[tuple[str, float] | None]):
+    """Full-screen form for adding a price alert."""
 
-    BINDINGS = [Binding("escape", "cancel", "Cancel")]
+    BINDINGS = [
+        Binding("escape", "cancel", "Cancel", show=True),
+        Binding("ctrl+s", "save", "Save", show=True),
+    ]
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="modal-dialog"):
-            yield Label("Add Forex Rate", id="modal-title")
-            yield Input(placeholder="Currency code (e.g., EUR)", id="code")
-            yield Input(placeholder="USD per unit (e.g., 1.085)", id="rate")
-            yield Input(placeholder="Date (YYYY-MM-DD, optional)", id="date")
-            with Horizontal(id="modal-buttons"):
-                yield Button("Add", variant="primary", id="add-btn")
-                yield Button("Cancel", variant="default", id="cancel-btn")
+        yield Header()
+        with Vertical(id="fullscreen-form"):
+            yield Label("[bold]Add Price Alert[/bold]", id="form-title")
+            with Horizontal(classes="form-row"):
+                yield Label("Product *", classes="form-label")
+                yield Input(placeholder="Product name", id="product-name")
+            with Horizontal(classes="form-row"):
+                yield Label("Threshold *", classes="form-label")
+                yield Input(placeholder="Price threshold", id="threshold")
+            with Horizontal(id="form-buttons"):
+                yield Button("Save (Ctrl+S)", variant="primary", id="save-btn")
+                yield Button("Cancel (Esc)", variant="default", id="cancel-btn")
+        yield Footer()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "add-btn":
-            code = self.query_one("#code", Input).value.upper()
-            rate_str = self.query_one("#rate", Input).value
-            date_str = self.query_one("#date", Input).value or None
-            try:
-                rate = float(rate_str) if rate_str else 0.0
-                self.dismiss((code, rate, date_str))
-            except ValueError:
-                self.notify("Invalid rate", severity="error")
+        if event.button.id == "save-btn":
+            self._do_save()
         else:
             self.dismiss(None)
+
+    def action_save(self) -> None:
+        self._do_save()
+
+    def _do_save(self) -> None:
+        product = self.query_one("#product-name", Input).value
+        threshold_str = self.query_one("#threshold", Input).value
+        if not product:
+            self.notify("Product name is required", severity="error")
+            return
+        try:
+            threshold = float(threshold_str) if threshold_str else 0.0
+            self.dismiss((product, threshold))
+        except ValueError:
+            self.notify("Invalid threshold value", severity="error")
 
     def action_cancel(self) -> None:
         self.dismiss(None)
 
 
-class AddAlertModal(ModalScreen[tuple[str, float] | None]):
-    """Modal for adding a price alert."""
+class AddPurchaseListScreen(Screen[tuple[str, str | None] | None]):
+    """Full-screen form for adding a new purchase list."""
 
-    BINDINGS = [Binding("escape", "cancel", "Cancel")]
+    BINDINGS = [
+        Binding("escape", "cancel", "Cancel", show=True),
+        Binding("ctrl+s", "save", "Save", show=True),
+    ]
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="modal-dialog"):
-            yield Label("Add Price Alert", id="modal-title")
-            yield Input(placeholder="Product name", id="product-name")
-            yield Input(placeholder="Price threshold", id="threshold")
-            with Horizontal(id="modal-buttons"):
-                yield Button("Add", variant="primary", id="add-btn")
-                yield Button("Cancel", variant="default", id="cancel-btn")
+        yield Header()
+        with Vertical(id="fullscreen-form"):
+            yield Label("[bold]Create Purchase List[/bold]", id="form-title")
+            with Horizontal(classes="form-row"):
+                yield Label("Name *", classes="form-label")
+                yield Input(placeholder="List name", id="list-name")
+            with Horizontal(classes="form-row"):
+                yield Label("Description", classes="form-label")
+                yield Input(placeholder="Optional description", id="list-description")
+            with Horizontal(id="form-buttons"):
+                yield Button("Save (Ctrl+S)", variant="primary", id="save-btn")
+                yield Button("Cancel (Esc)", variant="default", id="cancel-btn")
+        yield Footer()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "add-btn":
-            product = self.query_one("#product-name", Input).value
-            threshold_str = self.query_one("#threshold", Input).value
-            try:
-                threshold = float(threshold_str) if threshold_str else 0.0
-                self.dismiss((product, threshold))
-            except ValueError:
-                self.notify("Invalid threshold value", severity="error")
+        if event.button.id == "save-btn":
+            self._do_save()
         else:
             self.dismiss(None)
+
+    def action_save(self) -> None:
+        self._do_save()
+
+    def _do_save(self) -> None:
+        name = self.query_one("#list-name", Input).value
+        description = self.query_one("#list-description", Input).value or None
+        if not name:
+            self.notify("List name is required", severity="error")
+            return
+        self.dismiss((name, description))
 
     def action_cancel(self) -> None:
         self.dismiss(None)
 
 
-class AddPurchaseListModal(ModalScreen[tuple[str, str | None] | None]):
-    """Modal for adding a new purchase list."""
+class AddWatchlistScreen(Screen[tuple[str, float | None, str | None] | None]):
+    """Full-screen form for adding a product to watchlist."""
 
-    BINDINGS = [Binding("escape", "cancel", "Cancel")]
+    BINDINGS = [
+        Binding("escape", "cancel", "Cancel", show=True),
+        Binding("ctrl+s", "save", "Save", show=True),
+    ]
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="modal-dialog"):
-            yield Label("Create Purchase List", id="modal-title")
-            yield Input(placeholder="List name", id="list-name")
-            yield Input(placeholder="Description (optional)", id="list-description")
-            with Horizontal(id="modal-buttons"):
-                yield Button("Create", variant="primary", id="add-btn")
-                yield Button("Cancel", variant="default", id="cancel-btn")
+        yield Header()
+        with Vertical(id="fullscreen-form"):
+            yield Label("[bold]Add to Watchlist[/bold]", id="form-title")
+            with Horizontal(classes="form-row"):
+                yield Label("Product *", classes="form-label")
+                yield Input(placeholder="Product name", id="product-name")
+            with Horizontal(classes="form-row"):
+                yield Label("Target Price", classes="form-label")
+                yield Input(placeholder="Optional target price", id="target-price")
+            with Horizontal(classes="form-row"):
+                yield Label("Notes", classes="form-label")
+                yield Input(placeholder="Optional notes", id="notes")
+            with Horizontal(id="form-buttons"):
+                yield Button("Save (Ctrl+S)", variant="primary", id="save-btn")
+                yield Button("Cancel (Esc)", variant="default", id="cancel-btn")
+        yield Footer()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "add-btn":
-            name = self.query_one("#list-name", Input).value
-            description = self.query_one("#list-description", Input).value or None
-            self.dismiss((name, description))
+        if event.button.id == "save-btn":
+            self._do_save()
         else:
             self.dismiss(None)
 
-    def on_input_submitted(self, event: Input.Submitted) -> None:
-        if event.input.id == "list-name":
-            name = event.value
-            description = self.query_one("#list-description", Input).value or None
-            self.dismiss((name, description))
+    def action_save(self) -> None:
+        self._do_save()
 
-    def action_cancel(self) -> None:
-        self.dismiss(None)
-
-
-class AddToWatchlistModal(ModalScreen[tuple[str, float | None, str | None] | None]):
-    """Modal for adding a product to watchlist."""
-
-    BINDINGS = [Binding("escape", "cancel", "Cancel")]
-
-    def compose(self) -> ComposeResult:
-        with Vertical(id="modal-dialog"):
-            yield Label("Add to Watchlist", id="modal-title")
-            yield Input(placeholder="Product name", id="product-name")
-            yield Input(placeholder="Target price (optional)", id="target-price")
-            yield Input(placeholder="Notes (optional)", id="notes")
-            with Horizontal(id="modal-buttons"):
-                yield Button("Add", variant="primary", id="add-btn")
-                yield Button("Cancel", variant="default", id="cancel-btn")
-
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "add-btn":
-            product = self.query_one("#product-name", Input).value
-            target_str = self.query_one("#target-price", Input).value
-            notes = self.query_one("#notes", Input).value or None
-            try:
-                target = float(target_str) if target_str else None
-                self.dismiss((product, target, notes))
-            except ValueError:
-                self.notify("Invalid target price", severity="error")
-        else:
-            self.dismiss(None)
+    def _do_save(self) -> None:
+        product = self.query_one("#product-name", Input).value
+        target_str = self.query_one("#target-price", Input).value
+        notes = self.query_one("#notes", Input).value or None
+        if not product:
+            self.notify("Product name is required", severity="error")
+            return
+        try:
+            target = float(target_str) if target_str else None
+            self.dismiss((product, target, notes))
+        except ValueError:
+            self.notify("Invalid target price", severity="error")
 
     def action_cancel(self) -> None:
         self.dismiss(None)
@@ -685,6 +782,405 @@ class CompareModal(ModalScreen[None]):
         self.dismiss(None)
 
 
+class AddVendorScreen(Screen[dict | None]):
+    """Full-screen form for adding a vendor with all fields."""
+
+    BINDINGS = [
+        Binding("escape", "cancel", "Cancel", show=True),
+        Binding("ctrl+s", "save", "Save", show=True),
+    ]
+
+    def compose(self) -> ComposeResult:
+        from textual.containers import VerticalScroll
+
+        yield Header()
+        with Vertical(id="fullscreen-form"):
+            yield Label("[bold]Add Vendor[/bold]", id="form-title")
+            with VerticalScroll(id="form-scroll-full"):
+                # Basic info
+                yield Label("[bold]Basic Information[/bold]", classes="section-header")
+                with Horizontal(classes="form-row"):
+                    yield Label("Name *", classes="form-label")
+                    yield Input(placeholder="Vendor name", id="vendor-name")
+                with Horizontal(classes="form-row"):
+                    yield Label("Currency", classes="form-label")
+                    yield Input(placeholder="USD", id="currency")
+                with Horizontal(classes="form-row"):
+                    yield Label("Discount Code", classes="form-label")
+                    yield Input(placeholder="Optional", id="discount-code")
+                with Horizontal(classes="form-row"):
+                    yield Label("Discount %", classes="form-label")
+                    yield Input(placeholder="0", id="discount")
+                with Horizontal(classes="form-row"):
+                    yield Label("URL", classes="form-label")
+                    yield Input(placeholder="https://...", id="url")
+
+                # Contact info
+                yield Label("[bold]Contact[/bold]", classes="section-header")
+                with Horizontal(classes="form-row"):
+                    yield Label("Contact", classes="form-label")
+                    yield Input(placeholder="Contact person", id="contact-person")
+                with Horizontal(classes="form-row"):
+                    yield Label("Email", classes="form-label")
+                    yield Input(placeholder="email@example.com", id="email")
+                with Horizontal(classes="form-row"):
+                    yield Label("Phone", classes="form-label")
+                    yield Input(placeholder="+1 555-1234", id="phone")
+                with Horizontal(classes="form-row"):
+                    yield Label("Website", classes="form-label")
+                    yield Input(placeholder="https://...", id="website")
+
+                # Address
+                yield Label("[bold]Address[/bold]", classes="section-header")
+                with Horizontal(classes="form-row"):
+                    yield Label("Line 1", classes="form-label")
+                    yield Input(placeholder="Street address", id="address-line1")
+                with Horizontal(classes="form-row"):
+                    yield Label("Line 2", classes="form-label")
+                    yield Input(placeholder="Apt, suite, etc.", id="address-line2")
+                with Horizontal(classes="form-row"):
+                    yield Label("City", classes="form-label")
+                    yield Input(placeholder="City", id="city")
+                with Horizontal(classes="form-row"):
+                    yield Label("State", classes="form-label")
+                    yield Input(placeholder="State/Province", id="state")
+                with Horizontal(classes="form-row"):
+                    yield Label("Postal", classes="form-label")
+                    yield Input(placeholder="Postal code", id="postal-code")
+                with Horizontal(classes="form-row"):
+                    yield Label("Country", classes="form-label")
+                    yield Input(placeholder="Country", id="country")
+
+                # Business
+                yield Label("[bold]Business[/bold]", classes="section-header")
+                with Horizontal(classes="form-row"):
+                    yield Label("Tax ID", classes="form-label")
+                    yield Input(placeholder="Tax ID", id="tax-id")
+                with Horizontal(classes="form-row"):
+                    yield Label("Terms", classes="form-label")
+                    yield Input(placeholder="Payment terms", id="payment-terms")
+
+            with Horizontal(id="form-buttons"):
+                yield Button("Save (Ctrl+S)", variant="primary", id="save-btn")
+                yield Button("Cancel (Esc)", variant="default", id="cancel-btn")
+        yield Footer()
+
+    def action_save(self) -> None:
+        self._do_save()
+
+    def _do_save(self) -> None:
+        result = {
+            "name": self.query_one("#vendor-name", Input).value,
+            "currency": self.query_one("#currency", Input).value or "USD",
+            "discount_code": self.query_one("#discount-code", Input).value or None,
+            "discount": float(self.query_one("#discount", Input).value or 0),
+            "url": self.query_one("#url", Input).value or None,
+            "contact_person": self.query_one("#contact-person", Input).value or None,
+            "email": self.query_one("#email", Input).value or None,
+            "phone": self.query_one("#phone", Input).value or None,
+            "website": self.query_one("#website", Input).value or None,
+            "address_line1": self.query_one("#address-line1", Input).value or None,
+            "address_line2": self.query_one("#address-line2", Input).value or None,
+            "city": self.query_one("#city", Input).value or None,
+            "state": self.query_one("#state", Input).value or None,
+            "postal_code": self.query_one("#postal-code", Input).value or None,
+            "country": self.query_one("#country", Input).value or None,
+            "tax_id": self.query_one("#tax-id", Input).value or None,
+            "payment_terms": self.query_one("#payment-terms", Input).value or None,
+        }
+        if not result["name"]:
+            self.notify("Vendor name is required", severity="error")
+            return
+        self.dismiss(result)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "save-btn":
+            self._do_save()
+        else:
+            self.dismiss(None)
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+
+class AddSpecificationScreen(Screen[dict | None]):
+    """Full-screen form for adding a specification with features."""
+
+    BINDINGS = [
+        Binding("escape", "cancel", "Cancel", show=True),
+        Binding("ctrl+s", "save", "Save", show=True),
+        Binding("ctrl+n", "add_feature", "Add Feature", show=True),
+    ]
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.feature_count = 0
+
+    def compose(self) -> ComposeResult:
+        from textual.containers import VerticalScroll
+
+        yield Header()
+        with Vertical(id="fullscreen-form"):
+            yield Label("[bold]Add Specification[/bold]", id="form-title")
+            with VerticalScroll(id="form-scroll-full"):
+                yield Label("[bold]Specification[/bold]", classes="section-header")
+                with Horizontal(classes="form-row"):
+                    yield Label("Name *", classes="form-label")
+                    yield Input(placeholder="Specification name", id="spec-name")
+                with Horizontal(classes="form-row"):
+                    yield Label("Description", classes="form-label")
+                    yield Input(
+                        placeholder="Optional description", id="spec-description"
+                    )
+
+                yield Label(
+                    "[bold]Features[/bold] (Ctrl+N to add more)",
+                    classes="section-header",
+                )
+                yield Vertical(id="features-container")
+
+            with Horizontal(id="form-buttons"):
+                yield Button(
+                    "Add Feature (Ctrl+N)", variant="default", id="add-feature-btn"
+                )
+                yield Button("Save (Ctrl+S)", variant="primary", id="save-btn")
+                yield Button("Cancel (Esc)", variant="default", id="cancel-btn")
+        yield Footer()
+
+    def on_mount(self) -> None:
+        # Add one empty feature row by default
+        self._add_feature_row()
+
+    def _add_feature_row(self) -> None:
+        self.feature_count += 1
+        container = self.query_one("#features-container", Vertical)
+
+        feature_row = Horizontal(
+            id=f"feature-row-{self.feature_count}", classes="feature-row"
+        )
+        # Mount the row first, then add children
+        container.mount(feature_row)
+        feature_row.mount(
+            Input(
+                placeholder="Feature name",
+                id=f"feat-name-{self.feature_count}",
+                classes="feature-name",
+            )
+        )
+        feature_row.mount(
+            Select(
+                [(t, t) for t in ["text", "number", "boolean"]],
+                value="text",
+                id=f"feat-type-{self.feature_count}",
+                classes="feature-type",
+            )
+        )
+        feature_row.mount(
+            Input(
+                placeholder="Unit (optional)",
+                id=f"feat-unit-{self.feature_count}",
+                classes="feature-unit",
+            )
+        )
+
+    def action_save(self) -> None:
+        self._do_save()
+
+    def _do_save(self) -> None:
+        name = self.query_one("#spec-name", Input).value
+        if not name:
+            self.notify("Specification name is required", severity="error")
+            return
+
+        features = []
+        for i in range(1, self.feature_count + 1):
+            try:
+                feat_name = self.query_one(f"#feat-name-{i}", Input).value
+                if feat_name:
+                    feat_type = self.query_one(f"#feat-type-{i}", Select).value
+                    feat_unit = self.query_one(f"#feat-unit-{i}", Input).value
+                    features.append(
+                        {
+                            "name": feat_name,
+                            "data_type": feat_type or "text",
+                            "unit": feat_unit or None,
+                            "is_required": False,
+                        }
+                    )
+            except Exception:
+                pass
+
+        result = {
+            "name": name,
+            "description": self.query_one("#spec-description", Input).value or None,
+            "features": features,
+        }
+        self.dismiss(result)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "add-feature-btn":
+            self._add_feature_row()
+        elif event.button.id == "save-btn":
+            self._do_save()
+        else:
+            self.dismiss(None)
+
+    def action_add_feature(self) -> None:
+        self._add_feature_row()
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+
+class AddPurchaseOrderScreen(Screen[dict | None]):
+    """Full-screen form for adding a purchase order."""
+
+    BINDINGS = [
+        Binding("escape", "cancel", "Cancel", show=True),
+        Binding("ctrl+s", "save", "Save", show=True),
+    ]
+
+    def __init__(self, from_quote: Quote | None = None) -> None:
+        super().__init__()
+        self.from_quote = from_quote
+
+    def compose(self) -> ComposeResult:
+        from textual.containers import VerticalScroll
+        import datetime
+
+        yield Header()
+        with Vertical(id="fullscreen-form"):
+            title = "[bold]Add Purchase Order[/bold]"
+            if self.from_quote:
+                title += f" (from Quote #{self.from_quote.id})"
+            yield Label(title, id="form-title")
+
+            with VerticalScroll(id="form-scroll-full"):
+                yield Label("[bold]Order Info[/bold]", classes="section-header")
+                default_po = f"PO-{datetime.date.today().strftime('%Y%m%d')}-001"
+                with Horizontal(classes="form-row"):
+                    yield Label("PO # *", classes="form-label")
+                    yield Input(
+                        placeholder="PO Number", value=default_po, id="po-number"
+                    )
+
+                if self.from_quote:
+                    with Horizontal(classes="form-row"):
+                        yield Label("Vendor", classes="form-label")
+                        yield Input(
+                            value=self.from_quote.vendor.name,
+                            id="vendor-name",
+                            disabled=True,
+                        )
+                    with Horizontal(classes="form-row"):
+                        yield Label("Product", classes="form-label")
+                        yield Input(
+                            value=self.from_quote.product.name,
+                            id="product-name",
+                            disabled=True,
+                        )
+                    with Horizontal(classes="form-row"):
+                        yield Label("Unit Price", classes="form-label")
+                        yield Input(value=str(self.from_quote.value), id="unit-price")
+                else:
+                    with Horizontal(classes="form-row"):
+                        yield Label("Vendor *", classes="form-label")
+                        yield Input(placeholder="Vendor name", id="vendor-name")
+                    with Horizontal(classes="form-row"):
+                        yield Label("Product *", classes="form-label")
+                        yield Input(placeholder="Product name", id="product-name")
+                    with Horizontal(classes="form-row"):
+                        yield Label("Unit Price *", classes="form-label")
+                        yield Input(placeholder="0.00", id="unit-price")
+
+                with Horizontal(classes="form-row"):
+                    yield Label("Quantity", classes="form-label")
+                    yield Input(placeholder="1", value="1", id="quantity")
+                with Horizontal(classes="form-row"):
+                    yield Label("Currency", classes="form-label")
+                    yield Input(placeholder="USD", value="USD", id="currency")
+
+                yield Label("[bold]Costs[/bold]", classes="section-header")
+                with Horizontal(classes="form-row"):
+                    yield Label("Shipping", classes="form-label")
+                    yield Input(placeholder="0.00", id="shipping-cost")
+                with Horizontal(classes="form-row"):
+                    yield Label("Tax", classes="form-label")
+                    yield Input(placeholder="0.00", id="tax")
+
+                yield Label("[bold]Dates[/bold]", classes="section-header")
+                today = datetime.date.today().isoformat()
+                with Horizontal(classes="form-row"):
+                    yield Label("Order Date", classes="form-label")
+                    yield Input(placeholder="YYYY-MM-DD", value=today, id="order-date")
+                with Horizontal(classes="form-row"):
+                    yield Label("Expected", classes="form-label")
+                    yield Input(placeholder="YYYY-MM-DD", id="expected-delivery")
+
+                yield Label("[bold]Additional[/bold]", classes="section-header")
+                with Horizontal(classes="form-row"):
+                    yield Label("Invoice #", classes="form-label")
+                    yield Input(placeholder="Invoice number", id="invoice-number")
+                with Horizontal(classes="form-row"):
+                    yield Label("Notes", classes="form-label")
+                    yield Input(placeholder="Notes", id="notes")
+
+            with Horizontal(id="form-buttons"):
+                yield Button("Save (Ctrl+S)", variant="primary", id="save-btn")
+                yield Button("Cancel (Esc)", variant="default", id="cancel-btn")
+        yield Footer()
+
+    def action_save(self) -> None:
+        self._do_save()
+
+    def _do_save(self) -> None:
+        try:
+            result = {
+                "po_number": self.query_one("#po-number", Input).value,
+                "vendor": self.query_one("#vendor-name", Input).value,
+                "product": self.query_one("#product-name", Input).value,
+                "unit_price": float(self.query_one("#unit-price", Input).value or 0),
+                "quantity": int(self.query_one("#quantity", Input).value or 1),
+                "currency": self.query_one("#currency", Input).value or "USD",
+                "shipping_cost": float(
+                    self.query_one("#shipping-cost", Input).value or 0
+                )
+                or None,
+                "tax": float(self.query_one("#tax", Input).value or 0) or None,
+                "order_date": self.query_one("#order-date", Input).value or None,
+                "expected_delivery": self.query_one("#expected-delivery", Input).value
+                or None,
+                "invoice_number": self.query_one("#invoice-number", Input).value
+                or None,
+                "notes": self.query_one("#notes", Input).value or None,
+            }
+            if self.from_quote:
+                result["quote_id"] = self.from_quote.id
+
+            if not result["po_number"]:
+                self.notify("PO number is required", severity="error")
+                return
+            if not result["vendor"]:
+                self.notify("Vendor is required", severity="error")
+                return
+            if not result["product"]:
+                self.notify("Product is required", severity="error")
+                return
+
+            self.dismiss(result)
+        except ValueError as e:
+            self.notify(f"Invalid input: {e}", severity="error")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "save-btn":
+            self._do_save()
+        else:
+            self.dismiss(None)
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+
 class BuyerApp(App):
     """Buyer TUI Application."""
 
@@ -695,6 +1191,40 @@ class BuyerApp(App):
         padding: 1 2;
         background: $surface;
         border: thick $primary;
+    }
+
+    #modal-dialog-large {
+        width: 70;
+        height: 35;
+        padding: 1 2;
+        background: $surface;
+        border: thick $primary;
+    }
+
+    #form-scroll {
+        height: 1fr;
+        margin: 1 0;
+        scrollbar-gutter: stable;
+    }
+
+    .section-header {
+        margin-top: 1;
+        margin-bottom: 0;
+        color: $text-muted;
+    }
+
+    .feature-row {
+        height: 3;
+    }
+
+    .feature-row Input {
+        width: 1fr;
+        margin-right: 1;
+    }
+
+    .feature-row Select {
+        width: 12;
+        margin-right: 1;
     }
 
     #compare-dialog {
@@ -754,6 +1284,62 @@ class BuyerApp(App):
         height: 1;
         padding: 0 1;
         background: $primary;
+    }
+
+    /* Full-screen form styles */
+    #fullscreen-form {
+        width: 100%;
+        height: 1fr;
+        padding: 1 2;
+        background: $surface;
+    }
+
+    #form-title {
+        text-style: bold;
+        text-align: center;
+        margin-bottom: 1;
+    }
+
+    #form-scroll-full {
+        height: 1fr;
+        margin: 1 0;
+        scrollbar-gutter: stable;
+    }
+
+    .form-row {
+        height: 3;
+        margin-bottom: 0;
+    }
+
+    .form-label {
+        width: 12;
+        height: 3;
+        content-align: left middle;
+    }
+
+    .form-row Input {
+        width: 1fr;
+    }
+
+    #form-buttons {
+        height: 3;
+        margin-top: 1;
+    }
+
+    #form-buttons Button {
+        margin-right: 1;
+    }
+
+    .feature-name {
+        width: 2fr;
+    }
+
+    .feature-type {
+        width: 14;
+    }
+
+    .feature-unit {
+        width: 1fr;
     }
     """
 
@@ -844,6 +1430,10 @@ class BuyerApp(App):
                 yield DataTable(id="lists-table")
             with TabPane("Watchlist", id="watchlist-tab"):
                 yield DataTable(id="watchlist-table")
+            with TabPane("Specs", id="specs-tab"):
+                yield DataTable(id="specs-table")
+            with TabPane("POs", id="pos-tab"):
+                yield DataTable(id="pos-table")
         yield Footer()
 
     def on_mount(self) -> None:
@@ -889,6 +1479,16 @@ class BuyerApp(App):
         )
         watchlist_table.cursor_type = "row"
 
+        specs_table = self.query_one("#specs-table", DataTable)
+        specs_table.add_columns("ID", "Name", "Description", "Features", "Products")
+        specs_table.cursor_type = "row"
+
+        pos_table = self.query_one("#pos-table", DataTable)
+        pos_table.add_columns(
+            "ID", "PO#", "Vendor", "Product", "Qty", "Total", "Status", "Order Date"
+        )
+        pos_table.cursor_type = "row"
+
     def _refresh_all(self, filter_by: str | None = None) -> None:
         """Refresh all data tables."""
         self._refresh_brands(filter_by)
@@ -899,6 +1499,8 @@ class BuyerApp(App):
         self._refresh_alerts(filter_by)
         self._refresh_lists(filter_by)
         self._refresh_watchlist(filter_by)
+        self._refresh_specs(filter_by)
+        self._refresh_pos(filter_by)
 
     def _refresh_brands(self, filter_by: str | None = None) -> None:
         table = self.query_one("#brands-table", DataTable)
@@ -1158,6 +1760,64 @@ class BuyerApp(App):
                 key=str(w.id),
             )
 
+    def _refresh_specs(self, filter_by: str | None = None) -> None:
+        table = self.query_one("#specs-table", DataTable)
+        table.clear()
+        specs = SpecificationService.get_all(self.session)
+
+        for s in specs:
+            if filter_by and filter_by.lower() not in s.name.lower():
+                continue
+
+            desc = s.description or "-"
+            if len(desc) > 30:
+                desc = desc[:27] + "..."
+
+            table.add_row(
+                s.id,
+                s.name,
+                desc,
+                len(s.features),
+                len(s.products),
+                key=str(s.id),
+            )
+
+    def _refresh_pos(self, filter_by: str | None = None) -> None:
+        from rich.text import Text
+
+        table = self.query_one("#pos-table", DataTable)
+        table.clear()
+        pos = PurchaseOrderService.get_all(self.session)
+
+        for po in pos:
+            if filter_by and filter_by.lower() not in po.po_number.lower():
+                continue
+
+            # Color status
+            status_colors = {
+                "pending": "yellow",
+                "approved": "blue",
+                "ordered": "cyan",
+                "shipped": "magenta",
+                "received": "green",
+                "cancelled": "red",
+            }
+            status_text = Text(po.status, style=status_colors.get(po.status, "white"))
+
+            order_date = str(po.order_date) if po.order_date else "-"
+
+            table.add_row(
+                po.id,
+                po.po_number,
+                po.vendor.name,
+                po.product.name,
+                po.quantity,
+                f"${po.grand_total:.2f}",
+                status_text,
+                order_date,
+                key=str(po.id),
+            )
+
     def _get_active_tab(self) -> str:
         """Get the currently active tab ID."""
         tabbed = self.query_one(TabbedContent)
@@ -1167,21 +1827,116 @@ class BuyerApp(App):
         """Add a new entity based on current tab."""
         active = self._get_active_tab()
         if active == "brands-tab":
-            self.push_screen(AddBrandModal(), self._on_brand_added)
+            self.push_screen(AddBrandScreen(), self._on_brand_added)
         elif active == "products-tab":
-            self.push_screen(AddProductModal(), self._on_product_added)
+            self.push_screen(AddProductScreen(), self._on_product_added)
         elif active == "vendors-tab":
-            self.push_screen(AddVendorModal(), self._on_vendor_added)
+            self.push_screen(AddVendorScreen(), self._on_vendor_full_added)
         elif active == "quotes-tab":
-            self.push_screen(AddQuoteModal(), self._on_quote_added)
+            self.push_screen(AddQuoteScreen(), self._on_quote_added)
         elif active == "forex-tab":
-            self.push_screen(AddForexModal(), self._on_forex_added)
+            self.push_screen(AddForexScreen(), self._on_forex_added)
         elif active == "alerts-tab":
-            self.push_screen(AddAlertModal(), self._on_alert_added)
+            self.push_screen(AddAlertScreen(), self._on_alert_added)
         elif active == "lists-tab":
-            self.push_screen(AddPurchaseListModal(), self._on_list_added)
+            self.push_screen(AddPurchaseListScreen(), self._on_list_added)
         elif active == "watchlist-tab":
-            self.push_screen(AddToWatchlistModal(), self._on_watchlist_added)
+            self.push_screen(AddWatchlistScreen(), self._on_watchlist_added)
+        elif active == "specs-tab":
+            self.push_screen(AddSpecificationScreen(), self._on_specification_added)
+        elif active == "pos-tab":
+            self.push_screen(AddPurchaseOrderScreen(), self._on_purchase_order_added)
+
+    def _on_vendor_full_added(self, result: dict | None) -> None:
+        if result:
+            try:
+                vendor = VendorService.create(
+                    self.session,
+                    name=result["name"],
+                    currency=result["currency"],
+                    discount_code=result["discount_code"],
+                    discount=result["discount"],
+                    url=result["url"],
+                    contact_person=result["contact_person"],
+                    email=result["email"],
+                    phone=result["phone"],
+                    website=result["website"],
+                    address_line1=result["address_line1"],
+                    address_line2=result["address_line2"],
+                    city=result["city"],
+                    state=result["state"],
+                    postal_code=result["postal_code"],
+                    country=result["country"],
+                    tax_id=result["tax_id"],
+                    payment_terms=result["payment_terms"],
+                )
+                self.notify(f"Added vendor: {vendor.name}")
+                self._refresh_vendors()
+            except DuplicateError:
+                self.notify(
+                    f"Vendor '{result['name']}' already exists", severity="warning"
+                )
+            except ValidationError as e:
+                self.notify(str(e), severity="error")
+
+    def _on_specification_added(self, result: dict | None) -> None:
+        if result:
+            try:
+                spec = SpecificationService.create(
+                    self.session,
+                    name=result["name"],
+                    description=result["description"],
+                )
+                for feature in result.get("features", []):
+                    SpecificationService.add_feature(
+                        self.session,
+                        spec_name=spec.name,
+                        feature_name=feature["name"],
+                        data_type=feature.get("data_type", "text"),
+                        unit=feature.get("unit"),
+                        is_required=feature.get("is_required", False),
+                    )
+                self.notify(
+                    f"Added specification: {spec.name} ({len(result.get('features', []))} features)"
+                )
+                self._refresh_specs()
+            except DuplicateError:
+                self.notify(
+                    f"Specification '{result['name']}' already exists",
+                    severity="warning",
+                )
+            except ValidationError as e:
+                self.notify(str(e), severity="error")
+
+    def _on_purchase_order_added(self, result: dict | None) -> None:
+        if result:
+            try:
+                po = PurchaseOrderService.create(
+                    self.session,
+                    po_number=result["po_number"],
+                    vendor_name=result["vendor"],
+                    product_name=result["product"],
+                    unit_price=result["unit_price"],
+                    quantity=result["quantity"],
+                    currency=result["currency"],
+                    quote_id=result.get("quote_id"),
+                    order_date=result.get("order_date"),
+                    expected_delivery=result.get("expected_delivery"),
+                    shipping_cost=result.get("shipping_cost"),
+                    tax=result.get("tax"),
+                    invoice_number=result.get("invoice_number"),
+                    notes=result.get("notes"),
+                )
+                self.notify(f"Created PO: {po.po_number} (${po.grand_total:.2f})")
+                self._refresh_pos()
+            except DuplicateError:
+                self.notify(
+                    f"PO '{result['po_number']}' already exists", severity="warning"
+                )
+            except NotFoundError as e:
+                self.notify(str(e), severity="error")
+            except ValidationError as e:
+                self.notify(str(e), severity="error")
 
     def _on_brand_added(self, result: str | None) -> None:
         if result:
@@ -1216,31 +1971,6 @@ class BuyerApp(App):
                 self.notify(f"Added product: {product_name}")
                 self._refresh_products()
                 self._refresh_brands()
-            except Exception as e:
-                self.session.rollback()
-                self.notify(str(e), severity="error")
-
-    def _on_vendor_added(
-        self, result: tuple[str, str, str | None, float] | None
-    ) -> None:
-        if result:
-            name, currency, discount_code, discount = result
-            try:
-                existing = Vendor.by_name(self.session, name)
-                if existing:
-                    self.notify(f"Vendor '{name}' already exists", severity="warning")
-                    return
-
-                vendor = Vendor(
-                    name=name,
-                    currency=currency,
-                    discount_code=discount_code,
-                    discount=discount,
-                )
-                self.session.add(vendor)
-                self.session.commit()
-                self.notify(f"Added vendor: {name}")
-                self._refresh_vendors()
             except Exception as e:
                 self.session.rollback()
                 self.notify(str(e), severity="error")
@@ -1706,13 +2436,13 @@ class BuyerApp(App):
 
             try:
                 self.push_screen(
-                    AddToWatchlistModal(),
+                    AddWatchlistScreen(),
                     self._on_watchlist_added,
                 )
             except RowDoesNotExist:
                 self.notify("No product selected", severity="warning")
         else:
-            self.push_screen(AddToWatchlistModal(), self._on_watchlist_added)
+            self.push_screen(AddWatchlistScreen(), self._on_watchlist_added)
 
     def action_compare(self) -> None:
         """Open price comparison modal."""

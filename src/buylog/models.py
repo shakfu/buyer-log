@@ -86,6 +86,21 @@ class Vendor(Object, Base):
     discount_code: Mapped[str | None] = mapped_column(String)
     discount: Mapped[float] = mapped_column(Float, default=0.0)
     url: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Contact information
+    contact_person: Mapped[str | None] = mapped_column(String, nullable=True)
+    email: Mapped[str | None] = mapped_column(String, nullable=True)
+    phone: Mapped[str | None] = mapped_column(String, nullable=True)
+    website: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Address fields
+    address_line1: Mapped[str | None] = mapped_column(String, nullable=True)
+    address_line2: Mapped[str | None] = mapped_column(String, nullable=True)
+    city: Mapped[str | None] = mapped_column(String, nullable=True)
+    state: Mapped[str | None] = mapped_column(String, nullable=True)
+    postal_code: Mapped[str | None] = mapped_column(String, nullable=True)
+    country: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Business information
+    tax_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    payment_terms: Mapped[str | None] = mapped_column(String, nullable=True)
     brands: Mapped[List["Brand"]] = relationship(
         secondary=VendorBrand, back_populates="vendors"
     )
@@ -128,13 +143,100 @@ class Brand(Object, Base):
     products: Mapped[List["Product"]] = relationship("Product", back_populates="brand")
 
 
+# Specification data type constants
+SPEC_DATA_TYPES = ["text", "number", "boolean"]
+
+
+class Specification(Object, Base):
+    """Structured specification template for products"""
+
+    description: Mapped[str | None] = mapped_column(String, nullable=True)
+    features: Mapped[List["SpecificationFeature"]] = relationship(
+        "SpecificationFeature",
+        back_populates="specification",
+        cascade="all, delete-orphan",
+    )
+    products: Mapped[List["Product"]] = relationship(
+        "Product", back_populates="specification"
+    )
+
+
+class SpecificationFeature(Base):
+    """Individual feature definition within a specification"""
+
+    __tablename__ = "specification_feature"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    specification_id: Mapped[int] = mapped_column(
+        ForeignKey("specification.id"), index=True
+    )
+    specification: Mapped["Specification"] = relationship(
+        "Specification", back_populates="features"
+    )
+    name: Mapped[str] = mapped_column(String)
+    data_type: Mapped[str] = mapped_column(
+        String, default="text"
+    )  # text, number, boolean
+    unit: Mapped[str | None] = mapped_column(String, nullable=True)  # e.g., "mm", "kg"
+    is_required: Mapped[int] = mapped_column(Integer, default=0)  # SQLite bool
+    min_value: Mapped[float | None] = mapped_column(Float, nullable=True)
+    max_value: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    def __repr__(self):
+        return f"<SpecificationFeature(name='{self.name}', type={self.data_type})>"
+
+
+class ProductFeature(Base):
+    """Actual feature value for a product"""
+
+    __tablename__ = "product_feature"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    product_id: Mapped[int] = mapped_column(ForeignKey("product.id"), index=True)
+    product: Mapped["Product"] = relationship("Product", back_populates="features")
+    specification_feature_id: Mapped[int] = mapped_column(
+        ForeignKey("specification_feature.id"), index=True
+    )
+    specification_feature: Mapped["SpecificationFeature"] = relationship(
+        "SpecificationFeature"
+    )
+    value_text: Mapped[str | None] = mapped_column(String, nullable=True)
+    value_number: Mapped[float | None] = mapped_column(Float, nullable=True)
+    value_boolean: Mapped[int | None] = mapped_column(
+        Integer, nullable=True
+    )  # SQLite bool
+
+    def __repr__(self):
+        return f"<ProductFeature(feature='{self.specification_feature.name}')>"
+
+    @property
+    def value(self):
+        """Get the appropriate value based on data type"""
+        if self.specification_feature.data_type == "text":
+            return self.value_text
+        elif self.specification_feature.data_type == "number":
+            return self.value_number
+        elif self.specification_feature.data_type == "boolean":
+            return bool(self.value_boolean) if self.value_boolean is not None else None
+        return None
+
+
 class Product(Object, Base):
     """Item sold by brand via vendor"""
 
     brand_id: Mapped[int] = mapped_column(Integer, ForeignKey("brand.id"))
     brand: Mapped["Brand"] = relationship("Brand", back_populates="products")
     category: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+    specification_id: Mapped[int | None] = mapped_column(
+        ForeignKey("specification.id"), nullable=True
+    )
+    specification: Mapped["Specification | None"] = relationship(
+        "Specification", back_populates="products"
+    )
     quotes: Mapped[List["Quote"]] = relationship("Quote", back_populates="product")
+    features: Mapped[List["ProductFeature"]] = relationship(
+        "ProductFeature", back_populates="product", cascade="all, delete-orphan"
+    )
 
 
 # Quote status constants
@@ -194,6 +296,61 @@ class QuoteHistory(Base):
 
     def __repr__(self):
         return f"<QuoteHistory(quote_id={self.quote_id}, {self.old_value} -> {self.new_value})>"
+
+
+# PurchaseOrder status constants
+PO_STATUS_PENDING = "pending"
+PO_STATUS_APPROVED = "approved"
+PO_STATUS_ORDERED = "ordered"
+PO_STATUS_SHIPPED = "shipped"
+PO_STATUS_RECEIVED = "received"
+PO_STATUS_CANCELLED = "cancelled"
+PO_STATUSES = [
+    PO_STATUS_PENDING,
+    PO_STATUS_APPROVED,
+    PO_STATUS_ORDERED,
+    PO_STATUS_SHIPPED,
+    PO_STATUS_RECEIVED,
+    PO_STATUS_CANCELLED,
+]
+
+
+class PurchaseOrder(Base):
+    """Purchase order representing a committed purchase"""
+
+    __tablename__ = "purchase_order"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    quote_id: Mapped[int | None] = mapped_column(
+        ForeignKey("quote.id"), nullable=True, index=True
+    )
+    quote: Mapped["Quote | None"] = relationship("Quote")
+    vendor_id: Mapped[int] = mapped_column(ForeignKey("vendor.id"), index=True)
+    vendor: Mapped["Vendor"] = relationship("Vendor")
+    product_id: Mapped[int] = mapped_column(ForeignKey("product.id"), index=True)
+    product: Mapped["Product"] = relationship("Product")
+
+    po_number: Mapped[str] = mapped_column(String, unique=True, index=True)
+    status: Mapped[str] = mapped_column(String, default=PO_STATUS_PENDING, index=True)
+
+    order_date: Mapped[datetime.date | None] = mapped_column(Date, nullable=True)
+    expected_delivery: Mapped[datetime.date | None] = mapped_column(Date, nullable=True)
+    actual_delivery: Mapped[datetime.date | None] = mapped_column(Date, nullable=True)
+
+    quantity: Mapped[int] = mapped_column(Integer, default=1)
+    unit_price: Mapped[float] = mapped_column(Float)
+    currency: Mapped[str] = mapped_column(String, default="USD")
+    total_amount: Mapped[float] = mapped_column(Float)  # quantity * unit_price
+    shipping_cost: Mapped[float | None] = mapped_column(Float, nullable=True)
+    tax: Mapped[float | None] = mapped_column(Float, nullable=True)
+    grand_total: Mapped[float] = mapped_column(Float)  # total + shipping + tax
+
+    invoice_number: Mapped[str | None] = mapped_column(String, nullable=True)
+    notes: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime, default=func.now())
+
+    def __repr__(self):
+        return f"<PurchaseOrder(po_number='{self.po_number}', status='{self.status}')>"
 
 
 class PriceAlert(Base):

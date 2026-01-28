@@ -885,50 +885,56 @@ def main():
 
     # Import command
     import_parser = subparsers.add_parser("import", help="Import data from files")
-    import_subparsers = import_parser.add_subparsers(
-        dest="import_command", help="Import commands"
+    import_parser.add_argument(
+        "file", type=str, help="Path to Excel (.xlsx) or CSV file"
     )
-
-    # Import quotes
-    import_quotes_parser = import_subparsers.add_parser(
-        "quotes", help="Import quotes from CSV/JSON"
-    )
-    import_quotes_parser.add_argument("file", type=str, help="Path to CSV or JSON file")
-    import_quotes_parser.add_argument(
-        "--no-create", action="store_true", help="Don't create missing vendors/products"
+    import_parser.add_argument(
+        "-t",
+        "--table",
+        type=str,
+        choices=[
+            "vendors",
+            "products",
+            "quotes",
+            "specifications",
+            "specs",
+            "purchase_orders",
+            "pos",
+        ],
+        help="Table to import (required for Excel, auto-detected for CSV)",
     )
 
     # Export command
-    export_parser = subparsers.add_parser("export", help="Export data to files")
-    export_subparsers = export_parser.add_subparsers(
-        dest="export_command", help="Export commands"
+    export_parser = subparsers.add_parser("export", help="Export data to Excel/CSV")
+    export_parser.add_argument(
+        "-t",
+        "--table",
+        type=str,
+        choices=[
+            "vendors",
+            "products",
+            "quotes",
+            "specifications",
+            "specs",
+            "purchase_orders",
+            "pos",
+            "brands",
+        ],
+        help="Table to export (default: all tables)",
     )
-
-    # Export quotes
-    export_quotes_parser = export_subparsers.add_parser("quotes", help="Export quotes")
-    export_quotes_parser.add_argument("--file", type=str, help="Output file path")
-    export_quotes_parser.add_argument(
+    export_parser.add_argument(
+        "-o",
+        "--output",
+        type=str,
+        help="Output file path (default: buylog-db.xlsx or buylog-<table>.xlsx)",
+    )
+    export_parser.add_argument(
         "--format",
         type=str,
-        choices=["csv", "markdown"],
-        default="csv",
-        help="Output format",
+        choices=["xlsx", "csv"],
+        default="xlsx",
+        help="Output format (default: xlsx)",
     )
-    export_quotes_parser.add_argument(
-        "--filter", type=str, help="Filter by product name"
-    )
-
-    # Export products
-    export_products_parser = export_subparsers.add_parser(
-        "products", help="Export products to CSV"
-    )
-    export_products_parser.add_argument("--file", type=str, help="Output file path")
-
-    # Export vendors
-    export_vendors_parser = export_subparsers.add_parser(
-        "vendors", help="Export vendors to CSV"
-    )
-    export_vendors_parser.add_argument("--file", type=str, help="Output file path")
 
     # Backup command
     backup_parser = subparsers.add_parser("backup", help="Backup the database")
@@ -1129,6 +1135,49 @@ def main():
     )
     report_vendor_parser.add_argument(
         "--output", type=str, help="Output HTML file path"
+    )
+
+    # Migrate command
+    migrate_parser = subparsers.add_parser(
+        "migrate", help="Migrate database schema to match models"
+    )
+    migrate_parser.add_argument(
+        "--dry-run", action="store_true", help="Show SQL without executing"
+    )
+
+    # Template command - generate import templates
+    template_parser = subparsers.add_parser(
+        "template", help="Generate import templates (Excel/YAML/JSON)"
+    )
+    template_parser.add_argument(
+        "-t",
+        "--table",
+        type=str,
+        required=True,
+        choices=[
+            "vendors",
+            "products",
+            "quotes",
+            "specifications",
+            "specs",
+            "purchase_orders",
+            "pos",
+        ],
+        help="Table type for template",
+    )
+    template_parser.add_argument(
+        "-f",
+        "--format",
+        type=str,
+        choices=["xlsx", "yaml", "yml", "json"],
+        default="yaml",
+        help="Output format (default: yaml)",
+    )
+    template_parser.add_argument(
+        "-o",
+        "--output",
+        type=str,
+        help="Output file path (default: <table>-template.<format>)",
     )
 
     args = parser.parse_args()
@@ -1715,93 +1764,137 @@ def main():
                 print("Usage: buylog watchlist [add|list|update|remove]")
 
         elif args.command == "import":
-            from .services import (
-                ImportService,
-                NotFoundError,
-                ValidationError,
-                ServiceError,
-            )
+            from .excel import IMPORTERS
 
-            if args.import_command == "quotes":
-                file_path = args.file
-                create_missing = not getattr(args, "no_create", False)
+            filepath = args.file
+            table = getattr(args, "table", None)
 
-                try:
-                    # Detect format from extension
-                    if file_path.endswith(".json"):
+            try:
+                if filepath.endswith(".xlsx"):
+                    # Excel import
+                    if not table:
+                        print("Error: --table is required for Excel import")
+                        print("Usage: buylog import -t <table> file.xlsx")
+                        return
+
+                    importer = IMPORTERS.get(table)
+                    if not importer:
+                        print(f"Error: Unknown table: {table}")
+                        return
+
+                    success, errors = importer(session, filepath)
+                    print(f"Import complete: {success} rows imported")
+                    if errors:
+                        print(f"Errors ({len(errors)}):")
+                        for err in errors[:10]:
+                            print(f"  - {err}")
+                        if len(errors) > 10:
+                            print(f"  ... and {len(errors) - 10} more errors")
+
+                elif filepath.endswith(".csv") or filepath.endswith(".json"):
+                    # Legacy CSV/JSON import (quotes only)
+                    from .services import ImportService
+
+                    if filepath.endswith(".json"):
                         stats = ImportService.import_quotes_json(
-                            session, file_path, create_missing
+                            session, filepath, True
                         )
                     else:
-                        stats = ImportService.import_quotes_csv(
-                            session, file_path, create_missing
-                        )
+                        stats = ImportService.import_quotes_csv(session, filepath, True)
 
                     print("Import complete:")
                     print(f"  Imported: {stats['imported']}")
                     print(f"  Skipped: {stats['skipped']}")
-                    if stats["created_vendors"]:
+                    if stats.get("created_vendors"):
                         print(
                             f"  Created vendors: {', '.join(stats['created_vendors'])}"
                         )
-                    if stats["created_products"]:
+                    if stats.get("created_products"):
                         print(
                             f"  Created products: {', '.join(stats['created_products'])}"
                         )
-                    if stats["errors"]:
+                    if stats.get("errors"):
                         print("  Errors:")
                         for err in stats["errors"][:10]:
                             print(f"    - {err}")
-                        if len(stats["errors"]) > 10:
-                            print(
-                                f"    ... and {len(stats['errors']) - 10} more errors"
-                            )
-                except (NotFoundError, ValidationError, ServiceError) as e:
-                    print(f"Error: {e}")
+                else:
+                    print("Error: Unsupported file format. Use .xlsx, .csv, or .json")
 
-            else:
-                print("Usage: buylog import quotes <file>")
+            except FileNotFoundError:
+                print(f"Error: File not found: {filepath}")
+            except Exception as e:
+                print(f"Error: {e}")
 
         elif args.command == "export":
-            from .services import ExportService
+            from .excel import (
+                export_all,
+                export_brands,
+                export_products,
+                export_vendors,
+                export_quotes,
+                export_specifications,
+                export_purchase_orders,
+            )
 
-            if args.export_command == "quotes":
-                file_path = getattr(args, "file", None)
-                fmt = getattr(args, "format", "csv")
-                filter_by = getattr(args, "filter", None)
+            table = getattr(args, "table", None)
+            output = getattr(args, "output", None)
+            fmt = getattr(args, "format", "xlsx")
 
-                if fmt == "markdown":
-                    result = ExportService.export_quotes_markdown(
-                        session, file_path, filter_by
-                    )
-                else:
-                    result = ExportService.export_quotes_csv(
-                        session, file_path, filter_by
-                    )
-
-                if file_path:
-                    print(f"Exported to: {result}")
-                else:
-                    print(result)
-
-            elif args.export_command == "products":
-                file_path = getattr(args, "file", None)
-                result = ExportService.export_products_csv(session, file_path)
-                if file_path:
-                    print(f"Exported to: {result}")
-                else:
-                    print(result)
-
-            elif args.export_command == "vendors":
-                file_path = getattr(args, "file", None)
-                result = ExportService.export_vendors_csv(session, file_path)
-                if file_path:
-                    print(f"Exported to: {result}")
-                else:
-                    print(result)
-
+            # Determine output filename
+            if output:
+                filepath = output
+            elif table:
+                filepath = f"buylog-{table}.{fmt}"
             else:
-                print("Usage: buylog export [quotes|products|vendors]")
+                filepath = f"buylog-db.{fmt}"
+
+            # Ensure correct extension
+            if fmt == "xlsx" and not filepath.endswith(".xlsx"):
+                filepath = filepath.rsplit(".", 1)[0] + ".xlsx"
+
+            # Export based on table selection
+            try:
+                if fmt == "xlsx":
+                    if table is None:
+                        # Export all tables
+                        counts = export_all(session, filepath)
+                        print(f"Exported to: {filepath}")
+                        for name, count in counts.items():
+                            print(f"  {name}: {count} rows")
+                    else:
+                        # Export specific table
+                        exporters = {
+                            "brands": export_brands,
+                            "products": export_products,
+                            "vendors": export_vendors,
+                            "quotes": export_quotes,
+                            "specifications": export_specifications,
+                            "specs": export_specifications,
+                            "purchase_orders": export_purchase_orders,
+                            "pos": export_purchase_orders,
+                        }
+                        exporter = exporters.get(table)
+                        if exporter:
+                            count = exporter(session, filepath)
+                            print(f"Exported {count} rows to: {filepath}")
+                        else:
+                            print(f"Error: Unknown table: {table}")
+                else:
+                    # CSV export (legacy support)
+                    from .services import ExportService
+
+                    if table == "quotes":
+                        result = ExportService.export_quotes_csv(session, filepath)
+                    elif table == "products":
+                        result = ExportService.export_products_csv(session, filepath)
+                    elif table == "vendors":
+                        result = ExportService.export_vendors_csv(session, filepath)
+                    else:
+                        print("CSV export only supports: quotes, products, vendors")
+                        return
+                    print(f"Exported to: {filepath}")
+            except Exception as e:
+                print(f"Error: {e}")
 
         elif args.command == "backup":
             from .services import BackupService
@@ -2120,6 +2213,98 @@ def main():
                 print(
                     "Usage: buylog report [price-comparison|purchase-summary|vendor-analysis]"
                 )
+
+        elif args.command == "migrate":
+            from .migrate import run_migrations, check_migrations
+
+            if args.dry_run:
+                migrations = check_migrations(engine)
+                if not migrations:
+                    print("Database schema is up to date.")
+                else:
+                    print(f"Would apply {len(migrations)} migration(s):\n")
+                    for sql in migrations:
+                        print(f"  {sql};\n")
+            else:
+                migrations = run_migrations(engine)
+                if not migrations:
+                    print("Database schema is up to date.")
+                else:
+                    print(f"Applied {len(migrations)} migration(s):")
+                    for sql in migrations:
+                        # Truncate long SQL for display
+                        display = sql[:70] + "..." if len(sql) > 70 else sql
+                        print(f"  {display}")
+                    print("\nMigration complete.")
+
+        elif args.command == "template":
+            # Normalize table name
+            table = args.table
+            if table == "specs":
+                table = "specifications"
+            elif table == "pos":
+                table = "purchase_orders"
+
+            fmt = args.format
+            if fmt == "yml":
+                fmt = "yaml"
+
+            # Generate default filename if not provided
+            if args.output:
+                filepath = args.output
+            else:
+                filepath = f"{table}-template.{args.format}"
+
+            if fmt == "xlsx":
+                # Excel template generation
+                from .excel import TEMPLATE_GENERATORS
+
+                generator = TEMPLATE_GENERATORS.get(table)
+                if not generator:
+                    print(f"Error: Unknown table type: {table}")
+                    return
+
+                if not filepath.endswith(".xlsx"):
+                    filepath += ".xlsx"
+
+                try:
+                    # Some templates need session for data validation dropdowns
+                    if table in ("products", "quotes", "purchase_orders"):
+                        generator(filepath, session)
+                    else:
+                        generator(filepath)
+                    print(f"Generated template: {filepath}")
+                except Exception as e:
+                    print(f"Error: {e}")
+
+            else:
+                # YAML/JSON template generation
+                from .templates import (
+                    vendor_template_str,
+                    specification_template_str,
+                    purchase_order_template_str,
+                )
+
+                # Map table names to template generators
+                yaml_generators = {
+                    "vendors": lambda: vendor_template_str(fmt=fmt),
+                    "specifications": lambda: specification_template_str(fmt=fmt),
+                    "purchase_orders": lambda: purchase_order_template_str(fmt=fmt),
+                }
+
+                if table not in yaml_generators:
+                    print(
+                        f"Error: {fmt.upper()} templates only available for: vendors, specifications, purchase_orders"
+                    )
+                    print(f"Use -f xlsx for {table} templates")
+                    return
+
+                try:
+                    output = yaml_generators[table]()
+                    Path(filepath).write_text(output)
+                    print(f"Generated template: {filepath}")
+                except Exception as e:
+                    print(f"Error: {e}")
 
     except IntegrityError as e:
         session.rollback()

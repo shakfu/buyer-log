@@ -183,6 +183,45 @@ buylog report price-comparison --filter "iPhone"     # Filter by product name
 buylog report price-comparison --output report.html  # Save to file
 buylog report purchase-summary --output summary.html # Summary by status
 buylog report vendor-analysis --output vendors.html  # Vendor statistics
+
+# Excel export
+buylog export -t vendors -o vendors.xlsx             # Export vendors to Excel
+buylog export -t quotes -o quotes.xlsx               # Export quotes to Excel
+buylog export -o database.xlsx                       # Export all tables to single file
+buylog export                                        # Export all to buylog-db.xlsx (default)
+
+# Excel import
+buylog import vendors.xlsx -t vendors                # Import vendors from Excel
+buylog import products.xlsx -t products              # Import products from Excel
+buylog import quotes.xlsx -t quotes                  # Import quotes from Excel
+buylog import specs.xlsx -t specifications           # Import specifications from Excel
+buylog import pos.xlsx -t purchase_orders            # Import purchase orders from Excel
+
+# Generate import templates
+buylog template -t vendors -f xlsx                   # Excel template: vendors-template.xlsx
+buylog template -t vendors -f yaml                   # YAML template: vendors-template.yaml
+buylog template -t specs -f json                     # JSON template: specifications-template.json
+buylog template -t products -f xlsx                  # Excel template with brand dropdown
+buylog template -t purchase_orders -f xlsx           # PO template with vendor/product dropdowns
+
+# Purchase orders
+buylog po create PO-001 --vendor "Amazon" --product "iPhone 15" --price 999.99
+buylog po create PO-002 --vendor "Amazon" --product "iPhone 15" --price 999.99 --quantity 2
+buylog po list                                       # List all purchase orders
+buylog po list --status pending                      # Filter by status
+buylog po update PO-001 --status ordered             # Update status
+buylog po update PO-001 --status received            # Mark as received
+
+# Specifications
+buylog spec create "Camera Spec" --description "For camera products"
+buylog spec add-feature "Camera Spec" "Resolution" --type number --unit "MP"
+buylog spec add-feature "Camera Spec" "Has WiFi" --type boolean
+buylog spec list                                     # List all specifications
+buylog spec show "Camera Spec"                       # Show spec with features
+
+# Database migration
+buylog migrate                                       # Apply pending schema migrations
+buylog migrate --dry-run                             # Preview SQL without executing
 ```
 
 ### Text User Interface (TUI)
@@ -195,7 +234,7 @@ buylog tui
 
 The TUI provides:
 
-- Tabbed interface for Brands, Products, Vendors, Quotes, Forex rates, Alerts, Lists, and Watchlist
+- Tabbed interface for Brands, Products, Vendors, Quotes, Forex rates, Alerts, Lists, Watchlist, Purchase Orders, and Specifications
 - DataTables with row selection
 - Modal forms for adding entities
 - Search/filter functionality
@@ -232,7 +271,7 @@ The TUI provides:
   - `t` - Set quote status
   - `w` - Add to watchlist
   - `y` - Copy to clipboard
-  - `Ctrl+1-8` - Switch tabs directly
+  - `Ctrl+1-0` - Switch tabs directly (1-9 and 0 for tab 10)
   - `h/l` - Previous/next tab (vim-style)
   - `j/k` - Move cursor down/up (vim-style)
   - `1-7` - Sort by column number
@@ -280,6 +319,9 @@ buylog/
 │   ├── cli.py           # CLI interface
 │   ├── tui.py           # Textual TUI interface
 │   ├── services.py      # Business logic layer
+│   ├── excel.py         # Excel import/export (openpyxl)
+│   ├── templates.py     # YAML/JSON template generation
+│   ├── migrate.py       # Database schema migration
 │   ├── config.py        # Configuration management
 │   ├── audit.py         # Audit logging
 │   └── cache.py         # Caching utilities
@@ -288,6 +330,7 @@ buylog/
 │   ├── factories.py     # Factory Boy test data
 │   ├── test_models.py   # Model tests
 │   ├── test_services.py # Service layer tests
+│   ├── test_excel.py    # Excel import/export tests
 │   └── test_quote_analysis.py # Quote analysis feature tests
 ├── doc/                 # Documentation
 │   └── er_model.svg     # Auto-generated ER diagram
@@ -298,14 +341,18 @@ buylog/
 
 The core domain models:
 
-- **Vendor** - Selling entities with currency, discount codes, and brand relationships
+- **Vendor** - Selling entities with currency, discount codes, contact info, and address
 - **Brand** - Manufacturing entities linked to products and vendors
-- **Product** - Items with brand associations that can be quoted by vendors
+- **Product** - Items with brand associations and optional specification links
 - **Quote** - Price quotes from vendors with shipping, tax, status, and total cost calculation
 - **QuoteHistory** - Price change tracking for quotes (create/update events)
 - **PriceAlert** - Price threshold alerts for products
 - **Forex** - Currency exchange rates for multi-currency support
 - **PurchaseList** - Named shopping lists grouping quotes
+- **PurchaseOrder** - Committed purchases with status tracking and delivery dates
+- **Specification** - Structured product attribute definitions
+- **SpecificationFeature** - Feature definitions with data types and validation
+- **ProductFeature** - Feature values for products
 - **Note** - Freeform notes attachable to any entity (polymorphic)
 - **Tag** - Categorization tags with optional color
 - **EntityTag** - Junction table for tagging any entity
@@ -329,12 +376,15 @@ Business logic is separated into service classes:
 
 - `BrandService` - Brand CRUD with validation
 - `ProductService` - Product management with eager loading
-- `VendorService` - Vendor operations
+- `VendorService` - Vendor operations with extended contact/address fields
 - `QuoteService` - Quote management with currency conversion, best price detection, price updates, and status tracking
 - `QuoteHistoryService` - Price history tracking and trend computation
 - `PriceAlertService` - Price alert creation, triggering, and management
 - `ComparisonService` - Price comparison by product, search, category, or brand
 - `PurchaseListService` - Purchase list CRUD, add/remove quotes
+- `PurchaseOrderService` - Purchase order CRUD, status transitions, create from quote
+- `SpecificationService` - Specification and feature management
+- `ProductFeatureService` - Product feature value management
 - `NoteService` - Note CRUD for any entity type
 - `TagService` - Tag management and entity tagging
 - `WatchlistService` - Watchlist management with target prices
@@ -346,6 +396,7 @@ Business logic is separated into service classes:
 - **Python 3.13+** - Core language
 - **SQLAlchemy 2.0+** - ORM and database abstraction
 - **Textual** - Modern terminal UI framework
+- **openpyxl** - Excel file read/write
 - **pytest** - Testing framework
 - **Factory Boy** - Test data generation
 - **uv** - Fast Python package manager
